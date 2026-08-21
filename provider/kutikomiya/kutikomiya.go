@@ -30,10 +30,10 @@ const (
 )
 
 const (
-	baseURL    = "https://kutikomiya.jp"
-	actorURL   = "https://kutikomiya.jp/av-idol/%s/"
-	imageURL   = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
-	searchURL  = "https://kutikomiya.jp/search/av-idol/%s/"
+	baseURL   = "https://kutikomiya.jp"
+	actorURL  = "https://kutikomiya.jp/av-idol/%s/"
+	imageURL  = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
+	searchURL = "https://kutikomiya.jp/search/av-idol/%s/"
 )
 
 var (
@@ -151,21 +151,21 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 	}
 
 	// Birth date: 1995/11/26
-	re = regexp.MustCompile(`生年月日：\s*<b>([^<]+)`)
+	re = regexp.MustCompile(`生年月日：\s*<b>(\d+/\d+/\d+)`)
 	if match := re.FindStringSubmatch(html); len(match) >= 2 {
 		info.Birthday = parser.ParseDate(match[1])
 	}
 
 	// Birthplace: 東京都
-	re = regexp.MustCompile(`出身地：\s*<a[^>]*>([^<]+)`)
+	re = regexp.MustCompile(`出身地：\s*<a[^>]*>([^<]+)</a>`)
 	if match := re.FindStringSubmatch(html); len(match) >= 2 {
-		info.Nationality = match[1]
+		info.Nationality = strings.TrimSpace(match[1])
 	}
 
 	// Blood type: A型
-	re = regexp.MustCompile(`血液型：\s*<a[^>]*>([^<]+)`)
+	re = regexp.MustCompile(`血液型：\s*<a[^>]*>([^<]+)</a>`)
 	if match := re.FindStringSubmatch(html); len(match) >= 2 {
-		info.BloodType = match[1]
+		info.BloodType = strings.TrimSpace(match[1])
 	}
 
 	// Height: 160cm
@@ -180,12 +180,29 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 	re = regexp.MustCompile(`3サイズ:\s*<b>B(\d+):W(\d+):H(\d+)`)
 	if match := re.FindStringSubmatch(html); len(match) >= 4 {
 		info.Measurements = fmt.Sprintf("B%s / W%s / H%s", match[1], match[2], match[3])
+		// Cup size from the same line: (Gカップ)
+		re = regexp.MustCompile(`B\d+:W\d+:H\d+cm</b>\s*\(<a[^>]*>([^<]+)カップ`)
+		if cm := re.FindStringSubmatch(html); len(cm) >= 2 {
+			info.CupSize = cm[1] + "カップ"
+		}
 	}
 
-	// Cup size: Bカップ
-	re = regexp.MustCompile(`B(\d+)カップ`)
+	// Hobby
+	re = regexp.MustCompile(`趣味：\s*([^<]+)`)
 	if match := re.FindStringSubmatch(html); len(match) >= 2 {
-		info.CupSize = match[1] + "カップ"
+		hobby := strings.TrimSpace(match[1])
+		if hobby != "-" && hobby != "" {
+			info.Hobby = hobby
+		}
+	}
+
+	// Skill
+	re = regexp.MustCompile(`特技：\s*([^<]+)`)
+	if match := re.FindStringSubmatch(html); len(match) >= 2 {
+		skill := strings.TrimSpace(match[1])
+		if skill != "-" && skill != "" {
+			info.Skill = skill
+		}
 	}
 
 	// Aliases
