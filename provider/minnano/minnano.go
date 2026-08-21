@@ -179,12 +179,25 @@ func (m *Minnano) SearchActor(keyword string) (results []*model.ActorSearchResul
 			finalURL := r.Request.URL.String()
 			id, parseErr := m.ParseActorIDFromURL(finalURL)
 			if parseErr == nil && id != "" {
+				// Try to extract image from the actress page JSON-LD.
+				var images []string
+				re := regexp.MustCompile(`"image"\s*:\s*"([^"]+)"`)
+				if match := re.FindSubmatch(r.Body); len(match) >= 2 {
+					imgURL := string(match[1])
+					if !strings.HasPrefix(imgURL, "http") {
+						if u, err := url.Parse(finalURL); err == nil {
+							base, _ := url.Parse(u.Scheme + "://" + u.Host)
+							imgURL = base.ResolveReference(&url.URL{Path: imgURL}).String()
+						}
+					}
+					images = append(images, imgURL)
+				}
 				results = []*model.ActorSearchResult{{
 					ID:       id,
 					Name:     keyword,
 					Provider: m.Name(),
 					Homepage: finalURL,
-					Images:   []string{},
+					Images:   images,
 				}}
 			}
 		}
