@@ -3,6 +3,7 @@ package minnano
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"regexp"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	"github.com/gocolly/colly/v2"
 	"golang.org/x/text/language"
 
+	"github.com/metatube-community/metatube-sdk-go/common/fetch"
 	"github.com/metatube-community/metatube-sdk-go/common/parser"
 	"github.com/metatube-community/metatube-sdk-go/model"
 	"github.com/metatube-community/metatube-sdk-go/provider"
@@ -278,69 +280,33 @@ func (m *Minnano) SearchActor(keyword string) (results []*model.ActorSearchResul
 	}
 	results = filtered
 
-	// If we have an exact match, try to also get the romaji name result.
-	if len(results) > 0 && results[0].Name == keyword {
-		if romajiResults, romajiErr := m.searchByRomaji(keyword, results[0].ID); romajiErr == nil {
-			results = append(romajiResults, results...)
+	// If we have an exact match, try to also get the romaji name.
+	if len(results) > 0 && results[0].ID != "" {
+		if romaji := m.fetchRomajiName(results[0].ID); romaji != "" {
+			results[0].Name = results[0].Name + "（" + romaji + "）"
 		}
 	}
 	return
 }
 
-func (m *Minnano) searchByRomaji(keyword, id string) ([]*model.ActorSearchResult, error) {
-	// Fetch the actor page to get the additionalName (romaji).
-	info, err := m.GetActorInfoByID(id)
+func (m *Minnano) fetchRomajiName(id string) string {
+	pageURL := fmt.Sprintf(actorURL, id)
+	client := fetch.Default(&fetch.Config{RaiseForStatus: false})
+	resp, err := client.Fetch(pageURL)
 	if err != nil {
-		return nil, err
+		return ""
 	}
-	// Find the romaji name from aliases.
-	var romaji string
-	for _, alias := range info.Aliases {
-		// English/romaji names typically contain only ASCII letters and spaces.
-		re := regexp.MustCompile(`^[A-Za-z\s]+$`)
-		if re.MatchString(alias) {
-			romaji = alias
-			break
-		}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
 	}
-	if romaji == "" {
-		return nil, fmt.Errorf("no romaji name found")
+	re := regexp.MustCompile(`"additionalName"\s*:\s*"([^"]+)"`)
+	match := re.FindSubmatch(body)
+	if len(match) < 2 {
+		return ""
 	}
-	// Search by romaji name (usually redirects to exact page).
-	searchURL := fmt.Sprintf(searchURL, url.QueryEscape(romaji))
-	c := m.ClonedCollector()
-	var romajiResults []*model.ActorSearchResult
-	c.OnResponse(func(r *colly.Response) {
-		if r.StatusCode == 200 {
-			finalURL := r.Request.URL.String()
-			rid, parseErr := m.ParseActorIDFromURL(finalURL)
-			if parseErr == nil && rid != "" {
-				var images []string
-				re := regexp.MustCompile(`"image"\s*:\s*"([^"]+)"`)
-				if match := re.FindSubmatch(r.Body); len(match) >= 2 {
-					imgURL := string(match[1])
-					if !strings.HasPrefix(imgURL, "http") {
-						if u, err := url.Parse(finalURL); err == nil {
-							base, _ := url.Parse(u.Scheme + "://" + u.Host)
-							imgURL = base.ResolveReference(&url.URL{Path: imgURL}).String()
-						}
-					}
-					images = append(images, imgURL)
-				}
-				romajiResults = append(romajiResults, &model.ActorSearchResult{
-					ID:       rid,
-					Name:     romaji,
-					Provider: m.Name(),
-					Homepage: finalURL,
-					Images:   images,
-				})
-			}
-		}
-	})
-	if err := c.Visit(searchURL); err != nil {
-		return nil, err
-	}
-	return romajiResults, nil
+	return string(match[1])
 }
 
 func init() {
