@@ -162,10 +162,14 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 		info.Nationality = strings.TrimSpace(match[1])
 	}
 
-	// Blood type: A型
+	// Blood type: A型 → strip to just "A" (Emby plugin adds "型" automatically)
 	re = regexp.MustCompile(`血液型：\s*<a[^>]*>([^<]+)</a>`)
 	if match := re.FindStringSubmatch(html); len(match) >= 2 {
-		info.BloodType = strings.TrimSpace(match[1])
+		bt := strings.TrimSpace(match[1])
+		bt = strings.TrimSuffix(bt, "型")
+		if bt != "" {
+			info.BloodType = bt
+		}
 	}
 
 	// Height: 160cm

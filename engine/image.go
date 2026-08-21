@@ -108,7 +108,7 @@ func (e *Engine) getImageByURL(provider mt.Provider, url string) (img image.Imag
 	}
 
 	var data []byte
-	if strings.Contains(url, "img.kutikomiya.jp") {
+	if strings.Contains(url, "kutikomiya.jp") {
 		// Use curl for kutikomiya images (TLS issue with weak DH key).
 		tmpFile, tmpErr := os.CreateTemp("", "openssl-*.cnf")
 		if tmpErr == nil {
@@ -118,8 +118,6 @@ func (e *Engine) getImageByURL(provider mt.Provider, url string) (img image.Imag
 			defer os.Remove(tmpPath)
 			cmd := exec.Command("curl", "-s",
 				"--insecure",
-				"--tlsv1.2",
-				"--ciphers", "DHE-RSA-AES128-GCM-SHA256",
 				"-H", "User-Agent: Mozilla/5.0",
 				url)
 			cmd.Env = append(os.Environ(), "OPENSSL_CONF="+tmpPath)
