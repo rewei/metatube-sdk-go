@@ -12,6 +12,8 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/database"
 	"github.com/metatube-community/metatube-sdk-go/engine"
 	"github.com/metatube-community/metatube-sdk-go/internal/envconfig"
+	"github.com/metatube-community/metatube-sdk-go/provider/configurable"
+	"github.com/metatube-community/metatube-sdk-go/provider/gfriends"
 	"github.com/metatube-community/metatube-sdk-go/route"
 	"github.com/metatube-community/metatube-sdk-go/route/auth"
 )
@@ -24,7 +26,9 @@ var Config = &struct {
 	DSN   string
 
 	// engine config
-	RequestTimeout time.Duration
+	RequestTimeout  time.Duration
+	ImageCacheDir   string
+	ProviderConfigDir string
 
 	// database config
 	DBMaxIdleConns int
@@ -49,6 +53,8 @@ func init() {
 	flag.StringVar(&Config.Token, "token", "", "Token to access server")
 	flag.StringVar(&Config.DSN, "dsn", "", "Database Service Name")
 	flag.DurationVar(&Config.RequestTimeout, "request-timeout", engine.DefaultRequestTimeout, "Timeout per request")
+	flag.StringVar(&Config.ImageCacheDir, "image-cache-dir", "", "Directory to cache images locally")
+	flag.StringVar(&Config.ProviderConfigDir, "provider-config-dir", "", "Directory of YAML provider config files")
 	flag.IntVar(&Config.DBMaxIdleConns, "db-max-idle-conns", 0, "Database max idle connections")
 	flag.IntVar(&Config.DBMaxOpenConns, "db-max-open-conns", 0, "Database max open connections")
 	flag.BoolVar(&Config.DBAutoMigrate, "db-auto-migrate", false, "Database auto migration")
@@ -80,6 +86,19 @@ func Router(names ...string) *gin.Engine {
 	// specify engine name
 	for _, name := range names {
 		opts = append(opts, engine.WithEngineName(name))
+	}
+
+	// image cache directory
+	if Config.ImageCacheDir != "" {
+		opts = append(opts, engine.WithImageCacheDir(Config.ImageCacheDir))
+	}
+
+	// load configurable providers from YAML files
+	if Config.ProviderConfigDir != "" {
+		if err := configurable.RegisterAllFromDir(Config.ProviderConfigDir); err != nil {
+			log.Fatalf("Load provider configs: %v", err)
+		}
+		gfriends.SetSlugDir(Config.ProviderConfigDir)
 	}
 
 	// // set actor provider configs if any

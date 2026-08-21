@@ -1,0 +1,18 @@
+name: WAPDB
+base_url: https://xxx.com
+priority: 1000
+language: ja
+
+actor:
+  url: "https://xxx.com/ja/s-2-0/{id}"
+  id_regex: "(\\d+)"
+  fields:
+    name: "concat(//meta[@itemprop='givenName']/@content, ' ', //meta[@itemprop='familyName']/@content)"
+    images: "//div[@id='pornostar-profil-galeries-photos-0']//img/@src"
+    birthday: "//time[@itemprop='birthDate']/@content"
+    height: "normalize-space(//span[@itemprop='value']//text())"
+    measurements: "normalize-space(substring-after(//p[contains(., 'measurements')]/text(), 'measurements: '))"
+    cup_size: "normalize-space(substring-before(substring-after(//p[contains(., 'cup size')]/text(), 'cup size: '), ' '))"
+    blood_type: "normalize-space(substring-after(//p[contains(., 'blood type')]/text(), 'blood type: '))"
+    nationality: "//span[@itemprop='addressCountry']//text()"
+    aliases: "//li/span[@itemprop='additionalName'][1]//text()"

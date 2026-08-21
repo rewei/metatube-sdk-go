@@ -1,7 +1,13 @@
 package engine
 
 import (
+	"bytes"
+	"crypto/md5"
+	"fmt"
 	"image"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/metatube-community/metatube-sdk-go/common/number"
 	R "github.com/metatube-community/metatube-sdk-go/constant"
@@ -91,13 +97,55 @@ func (e *Engine) GetImageByURL(provider mt.Provider, url string, ratio, pos floa
 }
 
 func (e *Engine) getImageByURL(provider mt.Provider, url string) (img image.Image, err error) {
+	if e.imageCacheDir != "" {
+		img, err = e.getImageFromCache(url)
+		if err == nil {
+			return
+		}
+	}
+
 	resp, err := e.Fetch(url, provider)
 	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
-	img, _, err = imageutil.Decode(resp.Body)
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	img, _, err = imageutil.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+
+	if e.imageCacheDir != "" {
+		e.saveImageToCache(url, data)
+	}
 	return
+}
+
+func (e *Engine) getImageCachePath(url string) string {
+	key := fmt.Sprintf("%x", md5.Sum([]byte(url)))
+	return filepath.Join(e.imageCacheDir, key[:2], key[2:4], key+".jpg")
+}
+
+func (e *Engine) getImageFromCache(url string) (image.Image, error) {
+	data, err := os.ReadFile(e.getImageCachePath(url))
+	if err != nil {
+		return nil, err
+	}
+	img, _, err := imageutil.Decode(bytes.NewReader(data))
+	return img, err
+}
+
+func (e *Engine) saveImageToCache(url string, data []byte) {
+	path := e.getImageCachePath(url)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return
+	}
+	os.WriteFile(path, data, 0644)
 }
 
 func (e *Engine) getPreferredMovieImageURLAndInfo(pid providerid.ProviderID, thumb bool) (url string, info *model.MovieInfo, err error) {

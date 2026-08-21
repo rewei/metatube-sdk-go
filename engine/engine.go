@@ -27,6 +27,8 @@ type Engine struct {
 	name    string
 	timeout time.Duration
 	fetcher *fetch.Fetcher
+
+	imageCacheDir string
 	// Engine Logger
 	logger *log.Logger
 	// Name:Config Case-Insensitive Map

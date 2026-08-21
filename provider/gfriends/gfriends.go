@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"path"
+	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"golang.org/x/text/language"
@@ -28,24 +31,46 @@ const (
 	Priority = 1000 - 1
 )
 
-const gFriendsID = "gfriends-id"
-
 const (
-	baseURL    = "https://github.com/gfriends/gfriends"
-	contentURL = "https://raw.githubusercontent.com/gfriends/gfriends/master/Content/%s/%s"
-	jsonURL    = "https://raw.githubusercontent.com/gfriends/gfriends/master/Filetree.json"
+	baseURL     = "https://kutikomiya.jp"
+	slugFileURL = "https://kutikomiya.jp/av-idol/%s/"
+	searchURL   = "https://kutikomiya.jp/search/av-idol/%s/"
+	contentURL  = "https://raw.githubusercontent.com/rewei/avatars/master/Content/%s/%s"
+	jsonURL     = "https://raw.githubusercontent.com/rewei/avatars/master/Filetree.json"
 )
 
 type Gfriends struct {
 	*scraper.Scraper
+	slugMap map[string]string
 }
 
 func New() *Gfriends {
-	return &Gfriends{scraper.NewDefaultScraper(
-		Name, baseURL, Priority,
-		language.Japanese,
-		scraper.WithDisableCookies(),
-	)}
+	gf := &Gfriends{
+		Scraper: scraper.NewDefaultScraper(
+			Name, baseURL, Priority,
+			language.Japanese,
+			scraper.WithDisableCookies(),
+		),
+		slugMap: make(map[string]string),
+	}
+	gf.loadSlugFile()
+	return gf
+}
+
+func (gf *Gfriends) loadSlugFile() {
+	if _slugDir == "" {
+		return
+	}
+	filePath := filepath.Join(_slugDir, "gfriends_slug.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return
+	}
+	m := make(map[string]string)
+	if err := json.Unmarshal(data, &m); err != nil {
+		return
+	}
+	gf.slugMap = m
 }
 
 func (gf *Gfriends) GetActorInfoByID(id string) (*model.ActorInfo, error) {
@@ -67,11 +92,10 @@ func (gf *Gfriends) GetActorInfoByID(id string) (*model.ActorInfo, error) {
 }
 
 func (gf *Gfriends) formatURL(id string) string {
-	u, _ := url.Parse(baseURL)
-	q := u.Query()
-	q.Set(gFriendsID, id)
-	u.RawQuery = q.Encode()
-	return u.String()
+	if slug, ok := gf.slugMap[id]; ok && slug != "" {
+		return fmt.Sprintf(slugFileURL, url.PathEscape(slug))
+	}
+	return fmt.Sprintf(searchURL, url.PathEscape(id))
 }
 
 func (gf *Gfriends) ParseActorIDFromURL(rawURL string) (string, error) {
@@ -79,7 +103,16 @@ func (gf *Gfriends) ParseActorIDFromURL(rawURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return homepage.Query().Get(gFriendsID), nil
+	// Try slug URL first: /av-idol/<slug>/
+	id := strings.TrimPrefix(homepage.Path, "/av-idol/")
+	id = strings.TrimSuffix(id, "/")
+	if id != "" {
+		return id, nil
+	}
+	// Fallback to search URL: /search/av-idol/<name>/
+	id = strings.TrimPrefix(homepage.Path, "/search/av-idol/")
+	id = strings.TrimSuffix(id, "/")
+	return id, nil
 }
 
 func (gf *Gfriends) GetActorInfoByURL(u string) (*model.ActorInfo, error) {
@@ -101,7 +134,13 @@ func (gf *Gfriends) SearchActor(keyword string) (results []*model.ActorSearchRes
 var (
 	_fileTree = newFileTree(2 * time.Hour)
 	_fetcher  = fetch.Default(nil)
+	_slugDir  string
 )
+
+// SetSlugDir sets the directory for the slug mapping file (gfriends_slug.json).
+func SetSlugDir(dir string) {
+	_slugDir = dir
+}
 
 type fileTree struct {
 	single *singledo.Single

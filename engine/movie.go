@@ -226,6 +226,7 @@ func (e *Engine) getMovieInfoWithCallback(provider mt.MovieProvider, id string, 
 			e.db.Clauses(clause.OnConflict{
 				UpdateAll: true,
 			}).Create(info) // ignore error
+			e.preFetchMovieImages(info)
 		}
 	}()
 	return callback()
@@ -267,4 +268,25 @@ func (e *Engine) GetMovieInfoByURL(rawURL string, lazy bool) (*model.MovieInfo, 
 		return nil, err
 	}
 	return e.getMovieInfoByProviderURL(provider, rawURL, lazy)
+}
+
+func (e *Engine) preFetchMovieImages(info *model.MovieInfo) {
+	if e.imageCacheDir == "" {
+		return
+	}
+	provider, err := e.GetMovieProviderByName(info.Provider)
+	if err != nil {
+		return
+	}
+	urls := []string{info.CoverURL, info.BigCoverURL, info.ThumbURL, info.BigThumbURL}
+	for _, url := range urls {
+		if url == "" {
+			continue
+		}
+		go func(u string) {
+			if _, err := e.getImageByURL(provider, u); err != nil {
+				e.logger.Printf("Pre-fetch image failed: %s, %v", u, err)
+			}
+		}(url)
+	}
 }

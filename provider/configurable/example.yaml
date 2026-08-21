@@ -1,0 +1,81 @@
+# ============================================
+# MetaTube 可配置 Provider 示例
+# 放到 --provider-config-dir 指定目录即可生效
+# 文件名任意，后缀 .yaml 或 .yml
+# ============================================
+
+# --- 影片 Provider 示例 ---
+# 假设源站 URL: https://example.com/movie/ABC-123
+# 页面结构: 常规 HTML，用 XPath 提取字段
+
+name: MyCustomProvider        # 唯一名称，不可重复
+base_url: https://example.com # 基础 URL
+priority: 1000                # 优先级，<=0 则禁用
+language: ja                  # ja/en/zh/ko
+
+movie:
+  url: "https://example.com/movie/{id}"  # {id} 会被替换为影片 ID
+  id_regex: "([A-Z]+-?\\d+)"            # 从 URL 提取 ID 的正则
+
+  # XPath 选择器（留空表示不提取该字段）
+  fields:
+    title: "//h1[@class='title']//text()"
+    number: "//span[@class='id']//text()"
+    cover: "//img[@class='cover']/@src"
+    big_cover: "//a[@id='bigcover']/@href"
+    thumb: "//img[@class='thumb']/@src"
+    big_thumb: ""
+    preview_video: "//video/source/@src"
+    preview_video_hls: ""
+    preview_images: "//div[@class='preview']//img/@src"
+    summary: "//div[@class='summary']//text()"
+    director: "//div[@class='director']//text()"
+    actors: "//div[@class='actress']//a//text()"
+    maker: "//div[@class='maker']//text()"
+    label: "//div[@class='label']//text()"
+    series: "//div[@class='series']//text()"
+    genres: "//span[@class='genre']//text()"
+    release_date: "//div[@class='date']//text()"
+    runtime: "//div[@class='runtime']//text()"
+    score: "//div[@class='score']//text()"
+
+  # 搜索（可选，不配置则不支持搜索）
+  search:
+    url: "https://example.com/search?q={keyword}"
+    results: "//div[@class='item']"  # 每个搜索结果的外层节点
+    fields:
+      id: ".//@data-id"
+      number: ".//span[@class='id']//text()"
+      title: ".//a[@class='title']//text()"
+      cover: ".//img/@src"
+      thumb: ""
+      actors: ".//span[@class='actors']//text()"
+      release_date: ".//span[@class='date']//text()"
+      score: ".//span[@class='score']//text()"
+      homepage: ".//a[@class='title']/@href"
+
+# --- 演员 Provider 示例 ---
+# 可以同时配置 movie 和 actor，也可以只配一个
+
+# name: MyActorProvider
+# base_url: https://example.com
+# priority: 1000
+# language: ja
+
+# actor:
+#   url: "https://example.com/actor/{id}"
+#   id_regex: "(\\d+)"
+#   fields:
+#     name: "//h1[@class='name']//text()"
+#     images: "//img[@class='portrait']/@src"
+#     summary: "//div[@class='bio']//text()"
+#     birthday: "//div[@class='birthday']//text()"
+#     height: "//div[@class='height']//text()"
+#     measurements: "//div[@class='measurements']//text()"
+#     blood_type: "//div[@class='blood']//text()"
+#     cup_size: "//div[@class='cup']//text()"
+#     nationality: "//div[@class='nationality']//text()"
+#     aliases: "//div[@class='aliases']//text()"
+#     hobby: "//div[@class='hobby']//text()"
+#     skill: "//div[@class='skill']//text()"
+#     debut_date: "//div[@class='debut']//text()"

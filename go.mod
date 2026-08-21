@@ -43,6 +43,7 @@ require (
 	golang.org/x/image v0.44.0
 	golang.org/x/net v0.57.0
 	golang.org/x/text v0.40.0
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.2
@@ -124,7 +125,6 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/sourcemap.v1 v1.0.5 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
 	modernc.org/libc v1.74.1 // indirect

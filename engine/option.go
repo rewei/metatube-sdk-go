@@ -20,6 +20,12 @@ func WithRequestTimeout(timeout time.Duration) Option {
 	}
 }
 
+func WithImageCacheDir(dir string) Option {
+	return func(e *Engine) {
+		e.imageCacheDir = dir
+	}
+}
+
 func WithActorProviderConfig(name string, config mt.Config) Option {
 	return func(e *Engine) {
 		e.actorProviderConfigs.Set(name, config)

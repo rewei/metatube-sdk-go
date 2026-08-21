@@ -167,6 +167,10 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 				info.Images = append(gInfo.Images, info.Images...)
 			}
 		}
+		// pre-fetch actor images after injection.
+		if err == nil && info != nil && info.IsValid() {
+			e.preFetchActorImages(info)
+		}
 	}()
 	// Query DB first (by id).
 	if lazy {
@@ -222,4 +226,24 @@ func (e *Engine) GetActorInfoByURL(rawURL string, lazy bool) (*model.ActorInfo, 
 		return nil, err
 	}
 	return e.getActorInfoByProviderURL(provider, rawURL, lazy)
+}
+
+func (e *Engine) preFetchActorImages(info *model.ActorInfo) {
+	if e.imageCacheDir == "" {
+		return
+	}
+	provider, err := e.GetActorProviderByName(gfriends.Name)
+	if err != nil {
+		return
+	}
+	for _, url := range info.Images {
+		if url == "" {
+			continue
+		}
+		go func(u string) {
+			if _, err := e.getImageByURL(provider, u); err != nil {
+				e.logger.Printf("Pre-fetch actor image failed: %s, %v", u, err)
+			}
+		}(url)
+	}
 }
