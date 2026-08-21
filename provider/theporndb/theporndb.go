@@ -9,7 +9,7 @@ import (
 // `export MT_MOVIE_PROVIDER_THEPORNDBMOVIE__ACCESS_TOKEN=your-token`
 // `export MT_MOVIE_PROVIDER_THEPORNDBSCENE__ACCESS_TOKEN=your-token`
 
-const Priority = 1000
+const Priority = 0
 
 func init() {
 	provider.Register(SceneProviderName, NewThePornDBScene)
