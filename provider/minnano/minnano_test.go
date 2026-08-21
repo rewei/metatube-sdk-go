@@ -16,5 +16,6 @@ func TestMinnano_SearchActor(t *testing.T) {
 	testkit.Test(t, New, []string{
 		"鈴音りおな",
 		"鈴木さとみ",
+		"丸山まい",
 	})
 }
