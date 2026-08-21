@@ -224,6 +224,10 @@ func (m *Minnano) SearchActor(keyword string) (results []*model.ActorSearchResul
 		if title == "" {
 			title = strings.TrimSpace(e.Text)
 		}
+		// Skip non-name links (e.g., "AV女優", "AV作品を見る", empty).
+		if title == "" || title == "AV女優" || title == "AV作品を見る" {
+			return
+		}
 		// Get image from child img src.
 		imgSrc := e.ChildAttr("img", "src")
 		id, parseErr := m.ParseActorIDFromURL(href)
