@@ -79,7 +79,11 @@ func (gf *Gfriends) GetActorInfoByID(id string) (*model.ActorInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, provider.ErrInfoNotFound
+		// If the actor is not in the Filetree but has a slug mapping,
+		// return a result without images (Homepage will be set from slug).
+		if _, ok := gf.slugMap[id]; !ok {
+			return nil, provider.ErrInfoNotFound
+		}
 	}
 	return &model.ActorInfo{
 		ID:       id,
