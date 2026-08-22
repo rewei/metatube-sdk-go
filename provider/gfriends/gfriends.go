@@ -37,6 +37,9 @@ const (
 	searchURL   = "https://kutikomiya.jp/search/av-idol/%s/"
 	contentURL  = "https://raw.githubusercontent.com/rewei/avatars/master/Content/%s/%s"
 	jsonURL     = "https://raw.githubusercontent.com/rewei/avatars/master/Filetree.json"
+	// Fallback to original gfriends if not found in rewei/avatars.
+	fallbackContentURL = "https://raw.githubusercontent.com/gfriends/gfriends/master/Content/%s/%s"
+	fallbackJSONURL    = "https://raw.githubusercontent.com/gfriends/gfriends/master/Filetree.json"
 )
 
 type Gfriends struct {
@@ -152,28 +155,34 @@ type fileTree struct {
 	// `Content`
 	Content *maps.OrderedMap[string, *maps.OrderedMap[string, string]] `json:"Content"`
 
-	// `Information`
-	//Information struct {
-	//	TotalNum  int     `json:"TotalNum"`
-	//	TotalSize int     `json:"TotalSize"`
-	//	Timestamp float64 `json:"Timestamp"`
-	//} `json:"Information"`
+	// configurable URLs (set by newFileTree)
+	jsonURL    string
+	contentURL string
 }
+
+// `Information`
+//Information struct {
+//	TotalNum  int     `json:"TotalNum"`
+//	TotalSize int     `json:"TotalSize"`
+//	Timestamp float64 `json:"Timestamp"`
+//} `json:"Information"`
 
 func newFileTree(wait time.Duration) *fileTree {
 	return &fileTree{
-		single:  singledo.NewSingle(wait),
-		Content: maps.NewOrderedMap[string, *maps.OrderedMap[string, string]](),
+		single:     singledo.NewSingle(wait),
+		Content:    maps.NewOrderedMap[string, *maps.OrderedMap[string, string]](),
+		jsonURL:    jsonURL,
+		contentURL: contentURL,
 	}
 }
 
 func (ft *fileTree) query(s string) (images []string, err error) {
-	// update
+	// update primary (rewei/avatars)
 	ft.single.Do(func() (any, error) {
 		err = ft.update()
 		return nil, nil
 	})
-	// query
+	// query primary
 	for co, am := range ft.Content.Iterator() {
 		for n, p := range am.Iterator() {
 			if n[:len(n)-len(path.Ext(n))] == s /* exact match */ {
@@ -183,12 +192,30 @@ func (ft *fileTree) query(s string) (images []string, err error) {
 			}
 		}
 	}
-	slices.Reverse(images) // descending
+	if len(images) > 0 {
+		return
+	}
+	// fallback to original gfriends
+	ft2 := newFileTree(0)
+	ft2.jsonURL = fallbackJSONURL
+	ft2.contentURL = fallbackContentURL
+	if err2 := ft2.update(); err2 == nil {
+		for co, am := range ft2.Content.Iterator() {
+			for n, p := range am.Iterator() {
+				if n[:len(n)-len(path.Ext(n))] == s /* exact match */ {
+					if u, e := url.Parse(fmt.Sprintf(fallbackContentURL, co, p)); e == nil {
+						images = append(images, u.String())
+					}
+				}
+			}
+		}
+	}
+	slices.Reverse(images)
 	return
 }
 
 func (ft *fileTree) update() error {
-	resp, err := _fetcher.Fetch(jsonURL)
+	resp, err := _fetcher.Fetch(ft.jsonURL)
 	if err != nil {
 		return err
 	}

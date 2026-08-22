@@ -32,6 +32,7 @@ const (
 const (
 	baseURL   = "https://kutikomiya.jp"
 	actorURL  = "https://kutikomiya.jp/av-idol/%s/"
+	imageURL  = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
 	searchURL = "https://kutikomiya.jp/search/av-idol/%s/"
 )
 
@@ -232,8 +233,9 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 		}
 	}
 
-	// Image is handled by the engine's gfriends injection.
-	// (img.kutikomiya.jp has TLS issues, and gfriends covers all common actors)
+	// Image fallback (gfriends is preferred, this is used when gfriends has no image)
+	imgURL := fmt.Sprintf(imageURL, slug, slug)
+	info.Images = append(info.Images, imgURL)
 
 	return info, nil
 }
@@ -245,11 +247,13 @@ func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, er
 		return nil, provider.ErrInfoNotFound
 	}
 	homepage := fmt.Sprintf(actorURL, slug)
+	imgURL := fmt.Sprintf(imageURL, slug, slug)
 	return []*model.ActorSearchResult{{
 		ID:       keyword,
 		Name:     keyword,
 		Provider: k.Name(),
 		Homepage: homepage,
+		Images:   []string{imgURL},
 	}}, nil
 }
 

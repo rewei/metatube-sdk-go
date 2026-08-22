@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/metatube-community/metatube-sdk-go/common/number"
 	R "github.com/metatube-community/metatube-sdk-go/constant"
@@ -104,15 +107,35 @@ func (e *Engine) getImageByURL(provider mt.Provider, url string) (img image.Imag
 		}
 	}
 
-	resp, err := e.Fetch(url, provider)
-	if err != nil {
-		return
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	var data []byte
+	if strings.Contains(url, "img.kutikomiya.jp") {
+		tmpFile, tmpErr := os.CreateTemp("", "openssl-*.cnf")
+		if tmpErr == nil {
+			tmpPath := tmpFile.Name()
+			tmpFile.WriteString("openssl_conf = openssl_init\n[openssl_init]\nssl_conf = ssl_sect\n[ssl_sect]\nsystem_default = system_default_sect\n[system_default_sect]\nMinProtocol = TLSv1.2\nCipherString = DEFAULT:@SECLEVEL=0\n")
+			tmpFile.Close()
+			defer os.Remove(tmpPath)
+			cmd := exec.Command("curl", "-s",
+				"--insecure",
+				"-H", "User-Agent: Mozilla/5.0",
+				url)
+			cmd.Env = append(os.Environ(), "OPENSSL_CONF="+tmpPath)
+			data, err = cmd.Output()
+			if err != nil {
+				return
+			}
+		}
+	} else {
+		var resp *http.Response
+		resp, err = e.Fetch(url, provider)
+		if err != nil {
+			return
+		}
+		defer resp.Body.Close()
+		data, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return
+		}
 	}
 
 	img, _, err = imageutil.Decode(bytes.NewReader(data))
