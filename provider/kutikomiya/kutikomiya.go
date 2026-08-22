@@ -26,13 +26,12 @@ var (
 
 const (
 	Name     = "KUTIKOMIYA"
-	Priority = 1000
+	Priority = 1000 + 1
 )
 
 const (
 	baseURL   = "https://kutikomiya.jp"
 	actorURL  = "https://kutikomiya.jp/av-idol/%s/"
-	imageURL  = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
 	searchURL = "https://kutikomiya.jp/search/av-idol/%s/"
 )
 
@@ -86,6 +85,17 @@ func (k *Kutikomiya) loadSlugFile() {
 func (k *Kutikomiya) GetActorInfoByID(id string) (*model.ActorInfo, error) {
 	slug, ok := k.slugMap[id]
 	if !ok || slug == "" {
+		// Try reverse lookup: id might be a slug.
+		for name, s := range k.slugMap {
+			if s == id {
+				slug = s
+				id = name
+				ok = true
+				break
+			}
+		}
+	}
+	if !ok || slug == "" {
 		return nil, provider.ErrInfoNotFound
 	}
 	return k.GetActorInfoByURL(fmt.Sprintf(actorURL, slug))
@@ -128,7 +138,6 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 	html := string(body)
 
 	info := &model.ActorInfo{
-		ID:       slug,
 		Provider: k.Name(),
 		Homepage: rawURL,
 		Aliases:  []string{},
@@ -149,6 +158,8 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 			}
 		}
 	}
+	// Use the Japanese name as ID (not slug), so Emby can look it up later.
+	info.ID = info.Name
 
 	// Birth date: 1995/11/26
 	re = regexp.MustCompile(`生年月日：\s*<b>(\d+/\d+/\d+)`)
@@ -221,9 +232,8 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 		}
 	}
 
-	// Image
-	imgURL := fmt.Sprintf(imageURL, slug, slug)
-	info.Images = append(info.Images, imgURL)
+	// Image is handled by the engine's gfriends injection.
+	// (img.kutikomiya.jp has TLS issues, and gfriends covers all common actors)
 
 	return info, nil
 }
@@ -235,13 +245,11 @@ func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, er
 		return nil, provider.ErrInfoNotFound
 	}
 	homepage := fmt.Sprintf(actorURL, slug)
-	imgURL := fmt.Sprintf(imageURL, slug, slug)
 	return []*model.ActorSearchResult{{
 		ID:       keyword,
 		Name:     keyword,
 		Provider: k.Name(),
 		Homepage: homepage,
-		Images:   []string{imgURL},
 	}}, nil
 }
 

@@ -118,6 +118,11 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 		wg sync.WaitGroup
 	)
 	for _, provider := range e.actorProviders.Iterator() {
+		// Skip slow providers (MINNANO) for search speed.
+		// They can still be used for fetching actor info by ID.
+		if provider.Priority() < 1000 {
+			continue
+		}
 		wg.Add(1)
 		go func(provider mt.ActorProvider) {
 			defer wg.Done()
