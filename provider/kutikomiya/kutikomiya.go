@@ -99,7 +99,12 @@ func (k *Kutikomiya) GetActorInfoByID(id string) (*model.ActorInfo, error) {
 	if !ok || slug == "" {
 		return nil, provider.ErrInfoNotFound
 	}
-	return k.GetActorInfoByURL(fmt.Sprintf(actorURL, slug))
+	info, err := k.GetActorInfoByURL(fmt.Sprintf(actorURL, slug))
+	if err != nil {
+		return nil, err
+	}
+	info.ID = id
+	return info, nil
 }
 
 func (k *Kutikomiya) ParseActorIDFromURL(rawURL string) (string, error) {

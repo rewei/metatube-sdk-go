@@ -113,13 +113,16 @@ func (e *Engine) SearchActor(keyword, name string, fallback bool) ([]*model.Acto
 }
 
 func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model.ActorSearchResult, err error) {
+	// Try KUTIKOMIYA first (fast, instant).
+	if k, e2 := e.SearchActor(keyword, "KUTIKOMIYA", fallback); e2 == nil && len(k) > 0 {
+		return k, nil
+	}
+	// Fallback to all other providers (slow).
 	var (
 		mu sync.Mutex
 		wg sync.WaitGroup
 	)
 	for _, provider := range e.actorProviders.Iterator() {
-		// Skip slow providers (MINNANO) for search speed.
-		// They can still be used for fetching actor info by ID.
 		if provider.Priority() < 1000 {
 			continue
 		}
@@ -128,17 +131,16 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 			defer wg.Done()
 			if innerResults, innerErr := e.searchActor(keyword, provider, fallback); innerErr == nil {
 				for _, result := range innerResults {
-					if result.IsValid() /* validation check */ {
+					if result.IsValid() {
 						mu.Lock()
 						results = append(results, result)
 						mu.Unlock()
 					}
 				}
-			} // ignore error
+			}
 		}(provider)
 	}
 	wg.Wait()
-
 	sort.SliceStable(results, func(i, j int) bool {
 		return e.MustGetActorProviderByName(results[i].Provider).Priority() >
 			e.MustGetActorProviderByName(results[j].Provider).Priority()
@@ -168,8 +170,9 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 	defer func() {
 		// gfriends actor image injection for JAV actor providers.
 		if err == nil && info != nil && provider.Language() == language.Japanese {
-			if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(info.Name); gErr == nil && len(gInfo.Images) > 0 {
-				info.Images = append(gInfo.Images, info.Images...)
+			// Try to find gfriends images by the original lookup ID.
+			if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(id); gErr == nil && len(gInfo.Images) > 0 {
+				info.Images = gInfo.Images
 			}
 		}
 		// pre-fetch actor images after injection.

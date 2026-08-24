@@ -13,7 +13,6 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/engine"
 	"github.com/metatube-community/metatube-sdk-go/internal/envconfig"
 	"github.com/metatube-community/metatube-sdk-go/provider/configurable"
-	"github.com/metatube-community/metatube-sdk-go/provider/gfriends"
 	"github.com/metatube-community/metatube-sdk-go/provider/kutikomiya"
 	"github.com/metatube-community/metatube-sdk-go/route"
 	"github.com/metatube-community/metatube-sdk-go/route/auth"
@@ -99,7 +98,6 @@ func Router(names ...string) *gin.Engine {
 		if err := configurable.RegisterAllFromDir(Config.ProviderConfigDir); err != nil {
 			log.Fatalf("Load provider configs: %v", err)
 		}
-		gfriends.SetSlugDir(Config.ProviderConfigDir)
 		kutikomiya.SetSlugDir(Config.ProviderConfigDir)
 	}
 

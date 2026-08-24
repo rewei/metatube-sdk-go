@@ -4,11 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
 	"path"
-	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"golang.org/x/text/language"
@@ -32,48 +29,21 @@ const (
 )
 
 const (
-	baseURL     = "https://kutikomiya.jp"
-	slugFileURL = "https://kutikomiya.jp/av-idol/%s/"
-	searchURL   = "https://kutikomiya.jp/search/av-idol/%s/"
-	contentURL  = "https://raw.githubusercontent.com/rewei/avatars/master/Content/%s/%s"
-	jsonURL     = "https://raw.githubusercontent.com/rewei/avatars/master/Filetree.json"
-	// Fallback to original gfriends if not found in rewei/avatars.
-	fallbackContentURL = "https://raw.githubusercontent.com/gfriends/gfriends/master/Content/%s/%s"
-	fallbackJSONURL    = "https://raw.githubusercontent.com/gfriends/gfriends/master/Filetree.json"
+	baseURL    = "https://raw.githubusercontent.com/rewei/avatars/master"
+	contentURL = "https://raw.githubusercontent.com/rewei/avatars/master/Content/%s/%s"
+	jsonURL    = "https://raw.githubusercontent.com/rewei/avatars/master/Filetree.json"
 )
 
 type Gfriends struct {
 	*scraper.Scraper
-	slugMap map[string]string
 }
 
 func New() *Gfriends {
-	gf := &Gfriends{
-		Scraper: scraper.NewDefaultScraper(
-			Name, baseURL, Priority,
-			language.Japanese,
-			scraper.WithDisableCookies(),
-		),
-		slugMap: make(map[string]string),
-	}
-	gf.loadSlugFile()
-	return gf
-}
-
-func (gf *Gfriends) loadSlugFile() {
-	if _slugDir == "" {
-		return
-	}
-	filePath := filepath.Join(_slugDir, "gfriends_slug.json")
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return
-	}
-	m := make(map[string]string)
-	if err := json.Unmarshal(data, &m); err != nil {
-		return
-	}
-	gf.slugMap = m
+	return &Gfriends{scraper.NewDefaultScraper(
+		Name, baseURL, Priority,
+		language.Japanese,
+		scraper.WithDisableCookies(),
+	)}
 }
 
 func (gf *Gfriends) GetActorInfoByID(id string) (*model.ActorInfo, error) {
@@ -82,27 +52,16 @@ func (gf *Gfriends) GetActorInfoByID(id string) (*model.ActorInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		// If the actor is not in the Filetree but has a slug mapping,
-		// return a result without images (Homepage will be set from slug).
-		if _, ok := gf.slugMap[id]; !ok {
-			return nil, provider.ErrInfoNotFound
-		}
+		return nil, provider.ErrInfoNotFound
 	}
 	return &model.ActorInfo{
 		ID:       id,
 		Name:     id,
 		Provider: gf.Name(),
-		Homepage: gf.formatURL(id),
+		Homepage: "",
 		Aliases:  []string{},
 		Images:   images,
 	}, nil
-}
-
-func (gf *Gfriends) formatURL(id string) string {
-	if slug, ok := gf.slugMap[id]; ok && slug != "" {
-		return fmt.Sprintf(slugFileURL, url.PathEscape(slug))
-	}
-	return fmt.Sprintf(searchURL, url.PathEscape(id))
 }
 
 func (gf *Gfriends) ParseActorIDFromURL(rawURL string) (string, error) {
@@ -110,16 +69,7 @@ func (gf *Gfriends) ParseActorIDFromURL(rawURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Try slug URL first: /av-idol/<slug>/
-	id := strings.TrimPrefix(homepage.Path, "/av-idol/")
-	id = strings.TrimSuffix(id, "/")
-	if id != "" {
-		return id, nil
-	}
-	// Fallback to search URL: /search/av-idol/<name>/
-	id = strings.TrimPrefix(homepage.Path, "/search/av-idol/")
-	id = strings.TrimSuffix(id, "/")
-	return id, nil
+	return homepage.Query().Get("id"), nil
 }
 
 func (gf *Gfriends) GetActorInfoByURL(u string) (*model.ActorInfo, error) {
@@ -141,71 +91,31 @@ func (gf *Gfriends) SearchActor(keyword string) (results []*model.ActorSearchRes
 var (
 	_fileTree = newFileTree(2 * time.Hour)
 	_fetcher  = fetch.Default(nil)
-	_slugDir  string
 )
-
-// SetSlugDir sets the directory for the slug mapping file (gfriends_slug.json).
-func SetSlugDir(dir string) {
-	_slugDir = dir
-}
 
 type fileTree struct {
 	single *singledo.Single
 
-	// `Content`
 	Content *maps.OrderedMap[string, *maps.OrderedMap[string, string]] `json:"Content"`
-
-	// configurable URLs (set by newFileTree)
-	jsonURL    string
-	contentURL string
 }
-
-// `Information`
-//Information struct {
-//	TotalNum  int     `json:"TotalNum"`
-//	TotalSize int     `json:"TotalSize"`
-//	Timestamp float64 `json:"Timestamp"`
-//} `json:"Information"`
 
 func newFileTree(wait time.Duration) *fileTree {
 	return &fileTree{
-		single:     singledo.NewSingle(wait),
-		Content:    maps.NewOrderedMap[string, *maps.OrderedMap[string, string]](),
-		jsonURL:    jsonURL,
-		contentURL: contentURL,
+		single:  singledo.NewSingle(wait),
+		Content: maps.NewOrderedMap[string, *maps.OrderedMap[string, string]](),
 	}
 }
 
 func (ft *fileTree) query(s string) (images []string, err error) {
-	// update primary (rewei/avatars)
 	ft.single.Do(func() (any, error) {
 		err = ft.update()
 		return nil, nil
 	})
-	// query primary
 	for co, am := range ft.Content.Iterator() {
 		for n, p := range am.Iterator() {
-			if n[:len(n)-len(path.Ext(n))] == s /* exact match */ {
+			if n[:len(n)-len(path.Ext(n))] == s {
 				if u, e := url.Parse(fmt.Sprintf(contentURL, co, p)); e == nil {
 					images = append(images, u.String())
-				}
-			}
-		}
-	}
-	if len(images) > 0 {
-		return
-	}
-	// fallback to original gfriends
-	ft2 := newFileTree(0)
-	ft2.jsonURL = fallbackJSONURL
-	ft2.contentURL = fallbackContentURL
-	if err2 := ft2.update(); err2 == nil {
-		for co, am := range ft2.Content.Iterator() {
-			for n, p := range am.Iterator() {
-				if n[:len(n)-len(path.Ext(n))] == s /* exact match */ {
-					if u, e := url.Parse(fmt.Sprintf(fallbackContentURL, co, p)); e == nil {
-						images = append(images, u.String())
-					}
 				}
 			}
 		}
@@ -215,7 +125,7 @@ func (ft *fileTree) query(s string) (images []string, err error) {
 }
 
 func (ft *fileTree) update() error {
-	resp, err := _fetcher.Fetch(ft.jsonURL)
+	resp, err := _fetcher.Fetch(jsonURL)
 	if err != nil {
 		return err
 	}
