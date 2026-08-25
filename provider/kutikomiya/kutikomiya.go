@@ -46,7 +46,8 @@ var (
 	reCupSize    = regexp.MustCompile(`B\d+:W\d+:H\d+cm</b>\s*\(<a[^>]*>([^<]+)カップ`)
 	reHobby      = regexp.MustCompile(`趣味：\s*([^<]+)`)
 	reSkill      = regexp.MustCompile(`特技：\s*([^<]+)`)
-	reAlias      = regexp.MustCompile(`別名：</span><p>([^<]+)`)
+	reAlias      = regexp.MustCompile(`別名：<b>([^<]+)`)
+	reAltAlias   = regexp.MustCompile(`別名：</span><p>([^<]+)`)
 )
 
 var (
@@ -208,7 +209,12 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 			info.Skill = skill
 		}
 	}
-	for _, m := range reAlias.FindAllStringSubmatch(html, -1) {
+	// Try both alias formats: 別名：<b> (old) and 別名：</span><p> (MINNANO style)
+	aliasMatches := reAlias.FindAllStringSubmatch(html, -1)
+	if len(aliasMatches) == 0 {
+		aliasMatches = reAltAlias.FindAllStringSubmatch(html, -1)
+	}
+	for _, m := range aliasMatches {
 		alias := strings.TrimSpace(m[1])
 		if alias != "" && alias != info.Name {
 			info.Aliases = append(info.Aliases, alias)
