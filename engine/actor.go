@@ -63,10 +63,10 @@ func (e *Engine) searchActor(keyword string, provider mt.Provider, fallback bool
 						err = nil
 						// update results.
 						asr := sets.NewOrderedSetWithHash(func(v *model.ActorSearchResult) string { return v.Provider + v.ID })
-						// unlike movie searching, we want search results go first
-						// than DB data here, so we add results later than DB results.
-						asr.Add(innerResults...)
-						asr.Add(results...)
+// unlike movie searching, we want search results go first
+					// than DB data here, so we add DB results after search results.
+					asr.Add(results...)
+					asr.Add(innerResults...)
 						results = asr.AsSlice()
 					}
 				}()
