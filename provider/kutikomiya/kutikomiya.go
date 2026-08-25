@@ -30,24 +30,37 @@ const (
 )
 
 const (
-	baseURL   = "https://kutikomiya.jp"
-	actorURL  = "https://kutikomiya.jp/av-idol/%s/"
-	imageURL  = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
-	searchURL = "https://kutikomiya.jp/search/av-idol/%s/"
+	baseURL  = "https://kutikomiya.jp"
+	actorURL = "https://kutikomiya.jp/av-idol/%s/"
+	imageURL = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
+)
+
+// Precompiled regexes
+var (
+	reName        = regexp.MustCompile(`<h1>([^（]+)`)
+	reBirthday   = regexp.MustCompile(`生年月日：\s*<b>(\d+/\d+/\d+)`)
+	reBirthplace = regexp.MustCompile(`出身地：\s*<a[^>]*>([^<]+)</a>`)
+	reBloodType  = regexp.MustCompile(`血液型：\s*<a[^>]*>([^<]+)</a>`)
+	reHeight     = regexp.MustCompile(`身長：\s*(\d+)cm`)
+	reMeasure    = regexp.MustCompile(`3サイズ:\s*<b>B(\d+):W(\d+):H(\d+)`)
+	reCupSize    = regexp.MustCompile(`B\d+:W\d+:H\d+cm</b>\s*\(<a[^>]*>([^<]+)カップ`)
+	reHobby      = regexp.MustCompile(`趣味：\s*([^<]+)`)
+	reSkill      = regexp.MustCompile(`特技：\s*([^<]+)`)
+	reAlias      = regexp.MustCompile(`別名：</span><p>([^<]+)`)
 )
 
 var (
 	_slugDir string
 )
 
-// SetSlugDir sets the directory for the slug mapping file (gfriends_slug.json).
 func SetSlugDir(dir string) {
 	_slugDir = dir
 }
 
 type Kutikomiya struct {
 	*scraper.Scraper
-	slugMap map[string]string
+	slugMap     map[string]string
+	slugReverse map[string]string // prebuilt reverse: slug -> name
 }
 
 func New() *Kutikomiya {
@@ -57,7 +70,8 @@ func New() *Kutikomiya {
 			language.Japanese,
 			scraper.WithDisableCookies(),
 		),
-		slugMap: make(map[string]string),
+		slugMap:     make(map[string]string),
+		slugReverse: make(map[string]string),
 	}
 	k.loadSlugFile()
 	return k
@@ -79,6 +93,10 @@ func (k *Kutikomiya) loadSlugFile() {
 			continue
 		}
 		k.slugMap = m
+		// Build reverse lookup
+		for name, slug := range m {
+			k.slugReverse[slug] = name
+		}
 		return
 	}
 }
@@ -87,13 +105,10 @@ func (k *Kutikomiya) GetActorInfoByID(id string) (*model.ActorInfo, error) {
 	slug, ok := k.slugMap[id]
 	if !ok || slug == "" {
 		// Try reverse lookup: id might be a slug.
-		for name, s := range k.slugMap {
-			if s == id {
-				slug = s
-				id = name
-				ok = true
-				break
-			}
+		if name, found := k.slugReverse[id]; found {
+			slug = id
+			id = name
+			ok = true
 		}
 	}
 	if !ok || slug == "" {
@@ -117,11 +132,8 @@ func (k *Kutikomiya) ParseActorIDFromURL(rawURL string) (string, error) {
 	if id == "" {
 		return "", nil
 	}
-	// Reverse lookup: find the Japanese name for this slug.
-	for name, slug := range k.slugMap {
-		if slug == id {
-			return name, nil
-		}
+	if name, found := k.slugReverse[id]; found {
+		return name, nil
 	}
 	return id, nil
 }
@@ -150,95 +162,59 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 		Images:   []string{},
 	}
 
-	// Name from title: 早坂咲重（はやさか・さきえ）
-	re := regexp.MustCompile(`<h1>([^（]+)`)
-	if match := re.FindStringSubmatch(html); len(match) >= 2 {
+	if match := reName.FindStringSubmatch(html); len(match) >= 2 {
 		info.Name = strings.TrimSpace(match[1])
 	}
 	if info.Name == "" {
-		// Fallback to slug name.
-		for name, s := range k.slugMap {
-			if s == slug {
-				info.Name = name
-				break
-			}
+		if name, found := k.slugReverse[slug]; found {
+			info.Name = name
 		}
 	}
-	// Use the Japanese name as ID (not slug), so Emby can look it up later.
 	info.ID = info.Name
 
-	// Birth date: 1995/11/26
-	re = regexp.MustCompile(`生年月日：\s*<b>(\d+/\d+/\d+)`)
-	if match := re.FindStringSubmatch(html); len(match) >= 2 {
+	if match := reBirthday.FindStringSubmatch(html); len(match) >= 2 {
 		info.Birthday = parser.ParseDate(match[1])
 	}
-
-	// Birthplace: 東京都
-	re = regexp.MustCompile(`出身地：\s*<a[^>]*>([^<]+)</a>`)
-	if match := re.FindStringSubmatch(html); len(match) >= 2 {
+	if match := reBirthplace.FindStringSubmatch(html); len(match) >= 2 {
 		info.Nationality = strings.TrimSpace(match[1])
 	}
-
-	// Blood type: A型 → strip to just "A" (Emby plugin adds "型" automatically)
-	re = regexp.MustCompile(`血液型：\s*<a[^>]*>([^<]+)</a>`)
-	if match := re.FindStringSubmatch(html); len(match) >= 2 {
+	if match := reBloodType.FindStringSubmatch(html); len(match) >= 2 {
 		bt := strings.TrimSpace(match[1])
 		bt = strings.TrimSuffix(bt, "型")
 		if bt != "" {
 			info.BloodType = bt
 		}
 	}
-
-	// Height: 160cm
-	re = regexp.MustCompile(`身長：\s*(\d+)cm`)
-	if match := re.FindStringSubmatch(html); len(match) >= 2 {
+	if match := reHeight.FindStringSubmatch(html); len(match) >= 2 {
 		if h, err := strconv.Atoi(match[1]); err == nil {
 			info.Height = h
 		}
 	}
-
-	// Measurements: B85:W58:H84cm
-	re = regexp.MustCompile(`3サイズ:\s*<b>B(\d+):W(\d+):H(\d+)`)
-	if match := re.FindStringSubmatch(html); len(match) >= 4 {
+	if match := reMeasure.FindStringSubmatch(html); len(match) >= 4 {
 		info.Measurements = fmt.Sprintf("B%s / W%s / H%s", match[1], match[2], match[3])
-		// Cup size from the same line: (Gカップ)
-		re = regexp.MustCompile(`B\d+:W\d+:H\d+cm</b>\s*\(<a[^>]*>([^<]+)カップ`)
-		if cm := re.FindStringSubmatch(html); len(cm) >= 2 {
+		if cm := reCupSize.FindStringSubmatch(html); len(cm) >= 2 {
 			info.CupSize = cm[1] + "カップ"
 		}
 	}
-
-	// Hobby
-	re = regexp.MustCompile(`趣味：\s*([^<]+)`)
-	if match := re.FindStringSubmatch(html); len(match) >= 2 {
+	if match := reHobby.FindStringSubmatch(html); len(match) >= 2 {
 		hobby := strings.TrimSpace(match[1])
 		if hobby != "-" && hobby != "" {
 			info.Hobby = hobby
 		}
 	}
-
-	// Skill
-	re = regexp.MustCompile(`特技：\s*([^<]+)`)
-	if match := re.FindStringSubmatch(html); len(match) >= 2 {
+	if match := reSkill.FindStringSubmatch(html); len(match) >= 2 {
 		skill := strings.TrimSpace(match[1])
 		if skill != "-" && skill != "" {
 			info.Skill = skill
 		}
 	}
-
-	// Aliases
-	re = regexp.MustCompile(`別名：<b>([^<]+)`)
-	if match := re.FindStringSubmatch(html); len(match) >= 2 {
-		aliases := strings.Split(match[1], "、")
-		for _, alias := range aliases {
-			alias = strings.TrimSpace(alias)
-			if alias != "" && alias != info.Name {
-				info.Aliases = append(info.Aliases, alias)
-			}
+	for _, m := range reAlias.FindAllStringSubmatch(html, -1) {
+		alias := strings.TrimSpace(m[1])
+		if alias != "" && alias != info.Name {
+			info.Aliases = append(info.Aliases, alias)
 		}
 	}
 
-	// Image fallback (gfriends is preferred, this is used when gfriends has no image)
 	imgURL := fmt.Sprintf(imageURL, slug, slug)
 	info.Images = append(info.Images, imgURL)
 
@@ -246,7 +222,6 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 }
 
 func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, error) {
-	// Look up the keyword in the slug mapping.
 	slug, ok := k.slugMap[keyword]
 	if !ok || slug == "" {
 		return nil, provider.ErrInfoNotFound

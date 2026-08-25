@@ -34,6 +34,16 @@ const (
 	searchURL = "https://www.minnano-av.com/search_result.php?search_scope=actress&search_word=%s&search=Go"
 )
 
+// Precompiled regexes
+var (
+	reActressID = regexp.MustCompile(`actress(\d+)\.html`)
+	reHeight    = regexp.MustCompile(`T(\d+)`)
+	reBustCup   = regexp.MustCompile(`B(\d+)\(([^)]+)\)`)
+	reWaist     = regexp.MustCompile(`W(\d+)`)
+	reHip       = regexp.MustCompile(`H(\d+)`)
+	reImage     = regexp.MustCompile(`"image"\s*:\s*"([^"]+)"`)
+)
+
 type Minnano struct {
 	*scraper.Scraper
 }
@@ -55,11 +65,9 @@ func (m *Minnano) ParseActorIDFromURL(rawURL string) (id string, err error) {
 	if err != nil {
 		return
 	}
-	re := regexp.MustCompile(`actress(\d+)\.html`)
-	matches := re.FindStringSubmatch(homepage.Path)
+	matches := reActressID.FindStringSubmatch(homepage.Path)
 	if len(matches) < 2 {
-		// Try matching on the full URL string (handles cases with query params).
-		matches = re.FindStringSubmatch(rawURL)
+		matches = reActressID.FindStringSubmatch(rawURL)
 	}
 	if len(matches) >= 2 {
 		id = matches[1]
@@ -126,25 +134,21 @@ func (m *Minnano) GetActorInfoByURL(rawURL string) (info *model.ActorInfo, err e
 	// Parse size/measurements: T167 / B85(Eカップ) / W60 / H87 / S
 	c.OnXML(`//td[span="サイズ"]/p`, func(e *colly.XMLElement) {
 		text := strings.TrimSpace(e.Text)
-		re := regexp.MustCompile(`T(\d+)`)
-		if match := re.FindStringSubmatch(text); len(match) >= 2 {
+		if match := reHeight.FindStringSubmatch(text); len(match) >= 2 {
 			if h, err := strconv.Atoi(match[1]); err == nil {
 				info.Height = h
 			}
 		}
-		re = regexp.MustCompile(`B(\d+)\(([^)]+)\)`)
-		if match := re.FindStringSubmatch(text); len(match) >= 3 {
+		if match := reBustCup.FindStringSubmatch(text); len(match) >= 3 {
 			info.CupSize = match[2]
 			info.Measurements = fmt.Sprintf("B%s", match[1])
 		}
-		re = regexp.MustCompile(`W(\d+)`)
-		if match := re.FindStringSubmatch(text); len(match) >= 2 {
+		if match := reWaist.FindStringSubmatch(text); len(match) >= 2 {
 			if info.Measurements != "" {
 				info.Measurements += fmt.Sprintf(" / W%s", match[1])
 			}
 		}
-		re = regexp.MustCompile(`H(\d+)`)
-		if match := re.FindStringSubmatch(text); len(match) >= 2 {
+		if match := reHip.FindStringSubmatch(text); len(match) >= 2 {
 			if info.Measurements != "" {
 				info.Measurements += fmt.Sprintf(" / H%s", match[1])
 			}
@@ -179,10 +183,8 @@ func (m *Minnano) SearchActor(keyword string) (results []*model.ActorSearchResul
 			finalURL := r.Request.URL.String()
 			id, parseErr := m.ParseActorIDFromURL(finalURL)
 			if parseErr == nil && id != "" {
-				// Try to extract image from the actress page JSON-LD.
 				var images []string
-				re := regexp.MustCompile(`"image"\s*:\s*"([^"]+)"`)
-				if match := re.FindSubmatch(r.Body); len(match) >= 2 {
+				if match := reImage.FindSubmatch(r.Body); len(match) >= 2 {
 					imgURL := string(match[1])
 					if !strings.HasPrefix(imgURL, "http") {
 						if u, err := url.Parse(finalURL); err == nil {
@@ -207,16 +209,13 @@ func (m *Minnano) SearchActor(keyword string) (results []*model.ActorSearchResul
 	var searchResults []*model.ActorSearchResult
 	c.OnXML(`//a[contains(@href, "actress")]`, func(e *colly.XMLElement) {
 		href := e.Attr("href")
-		// Skip non-actress links (e.g. ranking, list, detail).
 		if !strings.HasPrefix(href, "actress") || strings.HasPrefix(href, "actress_list") {
 			return
 		}
-		// Skip detail links.
 		cls := e.Attr("class")
 		if cls != "" && strings.Contains(cls, "detail") {
 			return
 		}
-		// Get name from img alt, then title, then text content.
 		title := e.ChildAttr("img", "alt")
 		if title == "" {
 			title = e.Attr("title")
@@ -224,11 +223,9 @@ func (m *Minnano) SearchActor(keyword string) (results []*model.ActorSearchResul
 		if title == "" {
 			title = strings.TrimSpace(e.Text)
 		}
-		// Skip non-name links (e.g., "AV女優", "AV作品を見る", empty).
 		if title == "" || title == "AV女優" || title == "AV作品を見る" {
 			return
 		}
-		// Get image from child img src.
 		imgSrc := e.ChildAttr("img", "src")
 		id, parseErr := m.ParseActorIDFromURL(href)
 		if parseErr != nil || id == "" {
@@ -253,15 +250,12 @@ func (m *Minnano) SearchActor(keyword string) (results []*model.ActorSearchResul
 		return
 	}
 
-	// If we got a redirect result, use it directly.
 	if len(results) > 0 {
 		return
 	}
 
-	// Sort search results: exact matches first, then deduplicate.
 	results = searchResults
 	sort.SliceStable(results, func(i, j int) bool {
-		// Exact matches come before partial matches.
 		if results[i].Name == keyword && results[j].Name != keyword {
 			return true
 		}
