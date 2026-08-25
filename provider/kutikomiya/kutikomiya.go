@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 
 	"golang.org/x/text/language"
 
+	"github.com/metatube-community/metatube-sdk-go/common/curlfetch"
 	"github.com/metatube-community/metatube-sdk-go/common/parser"
 	"github.com/metatube-community/metatube-sdk-go/model"
 	"github.com/metatube-community/metatube-sdk-go/provider"
@@ -238,23 +238,7 @@ func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, er
 }
 
 func curlFetch(rawURL string) ([]byte, error) {
-	tmpFile, err := os.CreateTemp("", "openssl-*.cnf")
-	if err != nil {
-		return nil, err
-	}
-	tmpPath := tmpFile.Name()
-	tmpFile.WriteString("openssl_conf = openssl_init\n[openssl_init]\nssl_conf = ssl_sect\n[ssl_sect]\nsystem_default = system_default_sect\n[system_default_sect]\nMinProtocol = TLSv1.2\nCipherString = DEFAULT:@SECLEVEL=0\n")
-	tmpFile.Close()
-	defer os.Remove(tmpPath)
-
-	cmd := exec.Command("curl", "-s", "-L",
-		"--insecure",
-		"--tlsv1.2",
-		"--ciphers", "DHE-RSA-AES128-GCM-SHA256",
-		"-H", "User-Agent: Mozilla/5.0",
-		rawURL)
-	cmd.Env = append(os.Environ(), "OPENSSL_CONF="+tmpPath)
-	return cmd.Output()
+	return curlfetch.Fetch(rawURL, "--tlsv1.2", "--ciphers", "DHE-RSA-AES128-GCM-SHA256")
 }
 
 func init() {

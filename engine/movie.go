@@ -279,11 +279,17 @@ func (e *Engine) preFetchMovieImages(info *model.MovieInfo) {
 		return
 	}
 	urls := []string{info.CoverURL, info.BigCoverURL, info.ThumbURL, info.BigThumbURL}
+	var sem = make(chan struct{}, 5) // limit concurrent pre-fetches
+	var wg sync.WaitGroup
 	for _, url := range urls {
 		if url == "" {
 			continue
 		}
+		wg.Add(1)
+		sem <- struct{}{}
 		go func(u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
 			if _, err := e.getImageByURL(provider, u); err != nil {
 				e.logger.Printf("Pre-fetch image failed: %s, %v", u, err)
 			}

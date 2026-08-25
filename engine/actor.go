@@ -113,16 +113,31 @@ func (e *Engine) SearchActor(keyword, name string, fallback bool) ([]*model.Acto
 }
 
 func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model.ActorSearchResult, err error) {
-	// Try KUTIKOMIYA first (fast, instant).
-	if k, e2 := e.SearchActor(keyword, "KUTIKOMIYA", fallback); e2 == nil && len(k) > 0 {
-		return k, nil
+	// Try the highest priority actor provider first (fast path).
+	// If it returns results, skip other providers for speed.
+	var fastProvider mt.ActorProvider
+	var fastPriority float64 = -1
+	for _, p := range e.actorProviders.Iterator() {
+		if p.Priority() > fastPriority {
+			fastProvider = p
+			fastPriority = p.Priority()
+		}
 	}
-	// Fallback to all other providers (slow).
+	if fastProvider != nil {
+		if k, e2 := e.SearchActor(keyword, fastProvider.Name(), fallback); e2 == nil && len(k) > 0 {
+			return k, nil
+		}
+	}
+	// Fallback to all other providers.
 	var (
 		mu sync.Mutex
 		wg sync.WaitGroup
 	)
 	for _, provider := range e.actorProviders.Iterator() {
+		// Skip the already-tried fast provider.
+		if fastProvider != nil && provider.Name() == fastProvider.Name() {
+			continue
+		}
 		if provider.Priority() < 1000 {
 			continue
 		}
@@ -141,9 +156,15 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 		}(provider)
 	}
 	wg.Wait()
+	// Precompute priorities to avoid map lookups during sort.
+	priorities := make(map[string]float64)
+	for _, r := range results {
+		if p, err := e.GetActorProviderByName(r.Provider); err == nil {
+			priorities[r.Provider] = p.Priority()
+		}
+	}
 	sort.SliceStable(results, func(i, j int) bool {
-		return e.MustGetActorProviderByName(results[i].Provider).Priority() >
-			e.MustGetActorProviderByName(results[j].Provider).Priority()
+		return priorities[results[i].Provider] > priorities[results[j].Provider]
 	})
 	return
 }
@@ -245,11 +266,17 @@ func (e *Engine) preFetchActorImages(info *model.ActorInfo) {
 	if err != nil {
 		return
 	}
+	var sem = make(chan struct{}, 5) // limit concurrent pre-fetches
+	var wg sync.WaitGroup
 	for _, url := range info.Images {
 		if url == "" {
 			continue
 		}
+		wg.Add(1)
+		sem <- struct{}{}
 		go func(u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
 			if _, err := e.getImageByURL(provider, u); err != nil {
 				e.logger.Printf("Pre-fetch actor image failed: %s, %v", u, err)
 			}
