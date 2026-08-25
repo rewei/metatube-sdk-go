@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"golang.org/x/text/language"
 	"gorm.io/gorm/clause"
@@ -113,8 +114,6 @@ func (e *Engine) SearchActor(keyword, name string, fallback bool) ([]*model.Acto
 }
 
 func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model.ActorSearchResult, err error) {
-	// Try the highest priority actor provider first (fast path).
-	// If it returns results, skip other providers for speed.
 	var fastProvider mt.ActorProvider
 	var fastPriority float64 = -1
 	for _, p := range e.actorProviders.Iterator() {
@@ -128,13 +127,11 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 			return k, nil
 		}
 	}
-	// Fallback to all other providers.
 	var (
 		mu sync.Mutex
 		wg sync.WaitGroup
 	)
 	for _, provider := range e.actorProviders.Iterator() {
-		// Skip the already-tried fast provider.
 		if fastProvider != nil && provider.Name() == fastProvider.Name() {
 			continue
 		}
@@ -144,7 +141,9 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 		wg.Add(1)
 		go func(provider mt.ActorProvider) {
 			defer wg.Done()
+			start := time.Now()
 			if innerResults, innerErr := e.searchActor(keyword, provider, fallback); innerErr == nil {
+				e.logger.Printf("Search actor %q with %s: %d results in %v", keyword, provider.Name(), len(innerResults), time.Since(start))
 				for _, result := range innerResults {
 					if result.IsValid() {
 						mu.Lock()
@@ -152,11 +151,25 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 						mu.Unlock()
 					}
 				}
+			} else {
+				e.logger.Printf("Search actor %q with %s: %v in %v", keyword, provider.Name(), innerErr, time.Since(start))
 			}
 		}(provider)
 	}
 	wg.Wait()
-	// Precompute priorities to avoid map lookups during sort.
+	// Deduplicate by provider+ID.
+	seen := make(map[string]bool)
+	deduped := make([]*model.ActorSearchResult, 0, len(results))
+	for _, r := range results {
+		key := r.Provider + r.ID
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		deduped = append(deduped, r)
+	}
+	results = deduped
+	// Precompute priorities for sort.
 	priorities := make(map[string]float64)
 	for _, r := range results {
 		if p, err := e.GetActorProviderByName(r.Provider); err == nil {

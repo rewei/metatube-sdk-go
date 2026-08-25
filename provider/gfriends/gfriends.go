@@ -123,7 +123,7 @@ func (ft *fileTree) query(s string) (images []string, err error) {
 	}
 	idx, ok := v.(map[string][]string)
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("unexpected cache type: %T", v)
 	}
 	images = idx[s]
 	slices.Reverse(images)

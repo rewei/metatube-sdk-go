@@ -60,7 +60,9 @@ func init() {
 	flag.BoolVar(&Config.DBAutoMigrate, "db-auto-migrate", false, "Database auto migration")
 	flag.BoolVar(&Config.DBPreparedStmt, "db-prepared-stmt", false, "Database prepared statement")
 	flag.BoolVar(&Config.VersionFlag, "version", false, "Show version")
-	ff.Parse(flag, os.Args[1:], ff.WithEnvVars())
+	if err := ff.Parse(flag, os.Args[1:], ff.WithEnvVars()); err != nil {
+		log.Fatalf("Failed to parse flags: %v", err)
+	}
 }
 
 func Router(names ...string) *gin.Engine {

@@ -57,7 +57,9 @@ func (s *Single) Do(fn func() (any, error)) (v any, err error, shared bool) {
 }
 
 func (s *Single) Reset() {
+	s.mux.Lock()
 	s.last = time.Time{}
+	s.mux.Unlock()
 }
 
 func NewSingle(wait time.Duration) *Single {

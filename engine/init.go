@@ -99,7 +99,7 @@ func (e *Engine) applyProviderConfig(providerType string, provider mt.Provider, 
 	if s, ok := provider.(mt.ProxySetter); ok && config.Has(proxyConfigKey) {
 		if v, err := config.GetString(proxyConfigKey); err == nil {
 			if err := s.SetProxy(v); err != nil {
-				e.logger.Fatalf("Set proxy for %s provider '%s' error: %v", providerType, provider.Name(), v)
+				e.logger.Printf("Set proxy for %s provider '%s' error: %v (skip)", providerType, provider.Name(), v)
 			}
 			e.logger.Printf("Override %s provider proxy: %s=%s", providerType, provider.Name(), v)
 		}
@@ -116,7 +116,7 @@ func (e *Engine) applyProviderConfig(providerType string, provider mt.Provider, 
 	// Apply full config.
 	if s, ok := provider.(mt.ConfigSetter); ok {
 		if err := s.SetConfig(config); err != nil {
-			e.logger.Fatalf("Set %s provider config for %s: %v", providerType, provider.Name(), err)
+			e.logger.Printf("Set %s provider config for %s error: %v (skip)", providerType, provider.Name(), err)
 		}
 	}
 }

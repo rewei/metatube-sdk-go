@@ -32,10 +32,18 @@ func getCacheClear(app *engine.Engine) gin.HandlerFunc {
 		if imageCacheDir := app.GetImageCacheDir(); imageCacheDir != "" {
 			app.LockImageCache()
 			entries, _ := os.ReadDir(imageCacheDir)
+			// Rename first, then remove. This prevents in-flight requests
+			// from reading partially deleted files.
+			tmpDir := imageCacheDir + ".tmp"
+			os.MkdirAll(tmpDir, 0755)
 			for _, entry := range entries {
-				os.RemoveAll(filepath.Join(imageCacheDir, entry.Name()))
+				oldPath := filepath.Join(imageCacheDir, entry.Name())
+				tmpPath := filepath.Join(tmpDir, entry.Name())
+				os.Rename(oldPath, tmpPath)
 			}
 			app.UnlockImageCache()
+			// Remove the renamed files outside the lock.
+			os.RemoveAll(tmpDir)
 		}
 		c.JSON(http.StatusOK, &responseMessage{
 			Data: "cache cleared",

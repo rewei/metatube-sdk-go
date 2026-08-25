@@ -21,9 +21,22 @@ const (
 	outputFile           = "gfriends_slug.json"
 )
 
-var client = &http.Client{Timeout: 15 * time.Second}
+var (
+	opensslPath string
+	client      = &http.Client{Timeout: 15 * time.Second}
+)
 
 func main() {
+	// Pre-create temp OpenSSL config file for reuse.
+	tmpFile, err := os.CreateTemp("", "openssl-*.cnf")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating temp file: %v\n", err)
+		os.Exit(1)
+	}
+	opensslPath = tmpFile.Name()
+	tmpFile.WriteString("openssl_conf = openssl_init\n[openssl_init]\nssl_conf = ssl_sect\n[ssl_sect]\nsystem_default = system_default_sect\n[system_default_sect]\nMinProtocol = TLSv1.2\nCipherString = DEFAULT:@SECLEVEL=0\n")
+	tmpFile.Close()
+	defer os.Remove(opensslPath)
 	fmt.Println("Fetching actress list from kutikomiya archive...")
 	body, err := httpGet(kutikomiyaArchiveURL)
 	if err != nil {
@@ -178,14 +191,6 @@ func httpGet(rawURL string) ([]byte, error) {
 		"--ciphers", "DHE-RSA-AES128-GCM-SHA256",
 		"-H", "User-Agent: Mozilla/5.0",
 		rawURL)
-	tmpFile, err := os.CreateTemp("", "openssl-*.cnf")
-	if err != nil {
-		return nil, err
-	}
-	tmpPath := tmpFile.Name()
-	tmpFile.WriteString("openssl_conf = openssl_init\n[openssl_init]\nssl_conf = ssl_sect\n[ssl_sect]\nsystem_default = system_default_sect\n[system_default_sect]\nMinProtocol = TLSv1.2\nCipherString = DEFAULT:@SECLEVEL=0\n")
-	tmpFile.Close()
-	defer os.Remove(tmpPath)
-	cmd.Env = append(os.Environ(), "OPENSSL_CONF="+tmpPath)
+	cmd.Env = append(os.Environ(), "OPENSSL_CONF="+opensslPath)
 	return cmd.Output()
 }
