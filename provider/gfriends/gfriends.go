@@ -4,13 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"path"
 	"slices"
 	"time"
 
 	"golang.org/x/text/language"
 
-	"github.com/metatube-community/metatube-sdk-go/collection/maps"
 	"github.com/metatube-community/metatube-sdk-go/common/fetch"
 	"github.com/metatube-community/metatube-sdk-go/common/singledo"
 	"github.com/metatube-community/metatube-sdk-go/model"
@@ -93,7 +91,6 @@ var (
 	_fetcher  = fetch.Default(nil)
 )
 
-// ResetCache clears the filetree cache so it will be re-fetched on next query.
 func ResetCache() {
 	_fileTree.single.Reset()
 }
@@ -101,30 +98,34 @@ func ResetCache() {
 type fileTree struct {
 	single *singledo.Single
 
-	Content *maps.OrderedMap[string, *maps.OrderedMap[string, string]] `json:"Content"`
+	// index: actor name → image URLs (built on update)
+	index map[string][]string
 }
 
 func newFileTree(wait time.Duration) *fileTree {
 	return &fileTree{
-		single:  singledo.NewSingle(wait),
-		Content: maps.NewOrderedMap[string, *maps.OrderedMap[string, string]](),
+		single: singledo.NewSingle(wait),
+		index:  make(map[string][]string),
 	}
 }
 
 func (ft *fileTree) query(s string) (images []string, err error) {
-	ft.single.Do(func() (any, error) {
-		err = ft.update()
-		return nil, nil
-	})
-	for co, am := range ft.Content.Iterator() {
-		for n, p := range am.Iterator() {
-			if n[:len(n)-len(path.Ext(n))] == s {
-				if u, e := url.Parse(fmt.Sprintf(contentURL, co, p)); e == nil {
-					images = append(images, u.String())
-				}
-			}
+	// single.Do returns the cached result. If update failed previously,
+	// the error is returned and NOT cached (so next call retries).
+	v, e, _ := ft.single.Do(func() (any, error) {
+		if err := ft.update(); err != nil {
+			return nil, err
 		}
+		return ft.index, nil
+	})
+	if e != nil {
+		return nil, e
 	}
+	idx, ok := v.(map[string][]string)
+	if !ok {
+		return nil, nil
+	}
+	images = idx[s]
 	slices.Reverse(images)
 	return
 }
@@ -135,7 +136,27 @@ func (ft *fileTree) update() error {
 		return err
 	}
 	defer resp.Body.Close()
-	return json.NewDecoder(resp.Body).Decode(ft)
+
+	var raw struct {
+		Content map[string]map[string]string `json:"Content"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return err
+	}
+
+	// Build index: name (without extension) → image URLs
+	idx := make(map[string][]string)
+	for category, files := range raw.Content {
+		for name, p := range files {
+			idx[name] = append(idx[name], fmt.Sprintf(contentURL, category, p))
+		}
+	}
+	// Reverse each list for descending order.
+	for k := range idx {
+		slices.Reverse(idx[k])
+	}
+	ft.index = idx
+	return nil
 }
 
 func init() {
