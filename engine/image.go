@@ -101,7 +101,9 @@ func (e *Engine) GetImageByURL(provider mt.Provider, url string, ratio, pos floa
 
 func (e *Engine) getImageByURL(provider mt.Provider, url string) (img image.Image, err error) {
 	if e.imageCacheDir != "" {
+		e.imageCacheMu.Lock()
 		img, err = e.getImageFromCache(url)
+		e.imageCacheMu.Unlock()
 		if err == nil {
 			return
 		}
@@ -144,7 +146,9 @@ func (e *Engine) getImageByURL(provider mt.Provider, url string) (img image.Imag
 	}
 
 	if e.imageCacheDir != "" {
+		e.imageCacheMu.Lock()
 		e.saveImageToCache(url, data)
+		e.imageCacheMu.Unlock()
 	}
 	return
 }

@@ -130,7 +130,8 @@ func getImage(app *engine.Engine, typ imageType) gin.HandlerFunc {
 
 		buf := &bytes.Buffer{}
 		if err = imageutil.EncodeToJPEG(buf, img, query.Quality); err != nil {
-			panic(err)
+			abortWithError(c, err)
+			return
 		}
 
 		c.Render(http.StatusOK, render.Reader{

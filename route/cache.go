@@ -3,6 +3,7 @@ package route
 import (
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,7 +30,12 @@ func getCacheClear(app *engine.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		gfriends.ResetCache()
 		if imageCacheDir := app.GetImageCacheDir(); imageCacheDir != "" {
-			os.RemoveAll(imageCacheDir)
+			app.LockImageCache()
+			entries, _ := os.ReadDir(imageCacheDir)
+			for _, entry := range entries {
+				os.RemoveAll(filepath.Join(imageCacheDir, entry.Name()))
+			}
+			app.UnlockImageCache()
 		}
 		c.JSON(http.StatusOK, &responseMessage{
 			Data: "cache cleared",

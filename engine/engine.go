@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -29,6 +30,7 @@ type Engine struct {
 	fetcher *fetch.Fetcher
 
 	imageCacheDir string
+	imageCacheMu sync.Mutex
 	// Engine Logger
 	logger *log.Logger
 	// Name:Config Case-Insensitive Map
@@ -152,6 +154,14 @@ func (e *Engine) MustGetMovieProviderByName(name string) mt.MovieProvider {
 
 func (e *Engine) GetImageCacheDir() string {
 	return e.imageCacheDir
+}
+
+func (e *Engine) LockImageCache() {
+	e.imageCacheMu.Lock()
+}
+
+func (e *Engine) UnlockImageCache() {
+	e.imageCacheMu.Unlock()
 }
 
 // Fetch fetches content from url. If the provider

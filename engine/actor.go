@@ -191,7 +191,7 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 	info, err = callback()
 	if err != nil {
 		// Fallback to gfriends for image-only result.
-		if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(id); gErr == nil {
+		if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(id); gErr == nil && gInfo.IsValid() && len(gInfo.Images) > 0 {
 			info = gInfo
 			err = nil
 		}
