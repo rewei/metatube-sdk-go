@@ -66,6 +66,7 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 		{
 			actors.GET("/:provider/:id", getInfo(app, actorInfoType))
 			actors.GET("/search", getSearch(app, actorSearchType))
+			actors.POST("/batch", getActorBatch(app))
 		}
 
 		movies := private.Group("/movies")
