@@ -159,7 +159,6 @@ func (e *Engine) getActorInfoFromDB(provider mt.ActorProvider, id string) (*mode
 
 func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, lazy bool, callback func() (*model.ActorInfo, error)) (info *model.ActorInfo, err error) {
 	defer func() {
-		// metadata validation check.
 		if err == nil && (info == nil || !info.IsValid()) {
 			err = mt.ErrIncompleteMetadata
 		}
@@ -168,34 +167,36 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 		return provider.GetActorInfoByID(id)
 	}
 	defer func() {
-		// gfriends actor image injection for JAV actor providers.
 		if err == nil && info != nil && provider.Language() == language.Japanese {
-			// Try to find gfriends images by the original lookup ID.
 			if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(id); gErr == nil && len(gInfo.Images) > 0 {
 				info.Images = gInfo.Images
 			}
 		}
-		// pre-fetch actor images after injection.
 		if err == nil && info != nil && info.IsValid() {
 			e.preFetchActorImages(info)
 		}
 	}()
-	// Query DB first (by id).
 	if lazy {
 		if info, err = e.getActorInfoFromDB(provider, id); err == nil && info.IsValid() {
 			return
 		}
 	}
-	// Delayed info auto-save.
 	defer func() {
 		if err == nil && info.IsValid() {
-			// Make sure we save the original info here.
 			e.db.Clauses(clause.OnConflict{
 				UpdateAll: true,
-			}).Create(info) // ignore error
+			}).Create(info)
 		}
 	}()
-	return callback()
+	info, err = callback()
+	if err != nil {
+		// Fallback to gfriends for image-only result.
+		if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(id); gErr == nil {
+			info = gInfo
+			err = nil
+		}
+	}
+	return
 }
 
 func (e *Engine) getActorInfoByProviderID(provider mt.ActorProvider, id string, lazy bool) (*model.ActorInfo, error) {

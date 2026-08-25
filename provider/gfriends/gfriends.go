@@ -93,6 +93,11 @@ var (
 	_fetcher  = fetch.Default(nil)
 )
 
+// ResetCache clears the filetree cache so it will be re-fetched on next query.
+func ResetCache() {
+	_fileTree.single.Reset()
+}
+
 type fileTree struct {
 	single *singledo.Single
 

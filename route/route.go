@@ -37,6 +37,7 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 	{
 		system.GET("/modules", getModules())
 		system.GET("/providers", getProviders(app))
+		system.GET("/cache/clear", getCacheClear(app))
 	}
 
 	public := r.Group("/v1",

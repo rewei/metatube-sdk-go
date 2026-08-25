@@ -150,6 +150,10 @@ func (e *Engine) MustGetMovieProviderByName(name string) mt.MovieProvider {
 	return provider
 }
 
+func (e *Engine) GetImageCacheDir() string {
+	return e.imageCacheDir
+}
+
 // Fetch fetches content from url. If the provider
 // is nil, the default fetcher will be used.
 func (e *Engine) Fetch(url string, provider mt.Provider) (*http.Response, error) {

@@ -1,10 +1,15 @@
 package route
 
 import (
+	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	cachecontrol "go.eigsys.de/gin-cachecontrol/v2"
+
+	"github.com/metatube-community/metatube-sdk-go/engine"
+	"github.com/metatube-community/metatube-sdk-go/provider/gfriends"
 )
 
 func cachePublicSMaxAge(duration time.Duration) gin.HandlerFunc {
@@ -16,9 +21,18 @@ func cachePublicSMaxAge(duration time.Duration) gin.HandlerFunc {
 
 func cacheNoStore() gin.HandlerFunc {
 	return cachecontrol.New(cachecontrol.Config{
-		// The no-store response directive indicates that any
-		// caches of any kind (private or shared) should not
-		// store this response.
 		NoStore: true,
 	})
+}
+
+func getCacheClear(app *engine.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		gfriends.ResetCache()
+		if imageCacheDir := app.GetImageCacheDir(); imageCacheDir != "" {
+			os.RemoveAll(imageCacheDir)
+		}
+		c.JSON(http.StatusOK, &responseMessage{
+			Data: "cache cleared",
+		})
+	}
 }
