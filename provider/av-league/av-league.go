@@ -25,7 +25,7 @@ var (
 
 const (
 	Name     = "AV-LEAGUE" // `AV.LEAGUE`
-	Priority = 0
+	Priority = 1000 - 2
 )
 
 const (

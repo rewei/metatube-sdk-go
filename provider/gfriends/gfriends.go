@@ -27,9 +27,11 @@ const (
 )
 
 const (
-	baseURL    = "https://raw.githubusercontent.com/rewei/avatars/master"
-	contentURL = "https://raw.githubusercontent.com/rewei/avatars/master/Content/%s/%s"
-	jsonURL    = "https://raw.githubusercontent.com/rewei/avatars/master/Filetree.json"
+	baseURL           = "https://raw.githubusercontent.com/rewei/avatars/master"
+	contentURL        = "https://raw.githubusercontent.com/rewei/avatars/master/Content/%s/%s"
+	jsonURL           = "https://raw.githubusercontent.com/rewei/avatars/master/Filetree.json"
+	fallbackContentURL = "https://raw.githubusercontent.com/gfriends/gfriends/master/Content/%s/%s"
+	fallbackJSONURL    = "https://raw.githubusercontent.com/gfriends/gfriends/master/Filetree.json"
 )
 
 type Gfriends struct {
@@ -46,6 +48,13 @@ func New() *Gfriends {
 
 func (gf *Gfriends) GetActorInfoByID(id string) (*model.ActorInfo, error) {
 	images, err := _fileTree.query(id)
+	if len(images) == 0 {
+		if err != nil {
+			// Try fallback on error too.
+		}
+		// Fallback to original gfriends.
+		images, err = _fileTreeOrig.query(id)
+	}
 	if len(images) == 0 {
 		if err != nil {
 			return nil, err
@@ -87,8 +96,9 @@ func (gf *Gfriends) SearchActor(keyword string) (results []*model.ActorSearchRes
 }
 
 var (
-	_fileTree = newFileTree(2 * time.Hour)
-	_fetcher  = fetch.Default(nil)
+	_fileTree      = newFileTree(2*time.Hour, jsonURL, contentURL)
+	_fileTreeOrig  = newFileTree(24*time.Hour, fallbackJSONURL, fallbackContentURL)
+	_fetcher       = fetch.Default(nil)
 )
 
 func ResetCache() {
@@ -99,13 +109,17 @@ type fileTree struct {
 	single *singledo.Single
 
 	// index: actor name → image URLs (built on update)
-	index map[string][]string
+	index      map[string][]string
+	jsonURL    string
+	contentURL string
 }
 
-func newFileTree(wait time.Duration) *fileTree {
+func newFileTree(wait time.Duration, jsonURL, contentURL string) *fileTree {
 	return &fileTree{
-		single: singledo.NewSingle(wait),
-		index:  make(map[string][]string),
+		single:     singledo.NewSingle(wait),
+		index:      make(map[string][]string),
+		jsonURL:    jsonURL,
+		contentURL: contentURL,
 	}
 }
 
