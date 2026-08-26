@@ -1,8 +1,11 @@
 package kutikomiya
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,7 +15,6 @@ import (
 
 	"golang.org/x/text/language"
 
-	"github.com/metatube-community/metatube-sdk-go/common/curlfetch"
 	"github.com/metatube-community/metatube-sdk-go/common/parser"
 	"github.com/metatube-community/metatube-sdk-go/model"
 	"github.com/metatube-community/metatube-sdk-go/provider"
@@ -30,9 +32,9 @@ const (
 )
 
 const (
-	baseURL  = "https://kutikomiya.jp"
-	actorURL = "https://kutikomiya.jp/av-idol/%s/"
-	imageURL = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
+	baseURL  = "https://localhost"
+	actorURL = "https://localhost/av-idol/%s/"
+	imageURL = "https://localhost:444/thumbnail/%s/W365xH450/%s001.jpg"
 )
 
 // Precompiled regexes
@@ -243,8 +245,21 @@ func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, er
 	}}, nil
 }
 
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	},
+}
+
 func curlFetch(rawURL string) ([]byte, error) {
-	return curlfetch.Fetch(rawURL, "--tlsv1.2", "--ciphers", "DHE-RSA-AES128-GCM-SHA256")
+	req, _ := http.NewRequest("GET", rawURL, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return io.ReadAll(resp.Body)
 }
 
 func init() {
