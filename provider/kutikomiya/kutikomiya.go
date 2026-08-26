@@ -59,19 +59,7 @@ func SetSlugDir(dir string) {
 }
 
 func LookupSlug(name string) string {
-	if _slugDir == "" {
-		return ""
-	}
-	filePath := filepath.Join(_slugDir, "gfriends_slug.json")
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return ""
-	}
-	m := make(map[string]string)
-	if err := json.Unmarshal(data, &m); err != nil {
-		return ""
-	}
-	return m[name]
+	return _slugMap[name]
 }
 
 func SaveSlugs(entries map[string]string) error {
@@ -85,12 +73,9 @@ func SaveSlugs(entries map[string]string) error {
 	}
 	filePath := filepath.Join(_slugDir, "gfriends_slug.json")
 	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return err
-	}
 	m := make(map[string]string)
-	if err := json.Unmarshal(data, &m); err != nil {
-		return err
+	if err == nil {
+		json.Unmarshal(data, &m)
 	}
 	for name, slug := range entries {
 		m[name] = slug
