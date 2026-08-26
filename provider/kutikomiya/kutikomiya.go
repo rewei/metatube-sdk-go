@@ -94,13 +94,22 @@ func SaveSlugs(entries map[string]string) error {
 	if err != nil {
 		return err
 	}
+	// Reload in-memory slug maps for all existing provider instances.
+	// This is a package-level reload, so all instances pick up changes.
+	for name, slug := range entries {
+		_slugMap[name] = slug
+		_slugReverse[slug] = name
+	}
 	return os.WriteFile(filePath, data, 0644)
 }
 
+var (
+	_slugMap     = make(map[string]string)
+	_slugReverse = make(map[string]string)
+)
+
 type Kutikomiya struct {
 	*scraper.Scraper
-	slugMap     map[string]string
-	slugReverse map[string]string // prebuilt reverse: slug -> name
 }
 
 func New() *Kutikomiya {
@@ -110,8 +119,6 @@ func New() *Kutikomiya {
 			language.Japanese,
 			scraper.WithDisableCookies(),
 		),
-		slugMap:     make(map[string]string),
-		slugReverse: make(map[string]string),
 	}
 	k.loadSlugFile()
 	return k
@@ -132,20 +139,19 @@ func (k *Kutikomiya) loadSlugFile() {
 		if err := json.Unmarshal(data, &m); err != nil {
 			continue
 		}
-		k.slugMap = m
-		// Build reverse lookup
+		_slugMap = m
 		for name, slug := range m {
-			k.slugReverse[slug] = name
+			_slugReverse[slug] = name
 		}
 		return
 	}
 }
 
 func (k *Kutikomiya) GetActorInfoByID(id string) (*model.ActorInfo, error) {
-	slug, ok := k.slugMap[id]
+	slug, ok := _slugMap[id]
 	if !ok || slug == "" {
 		// Try reverse lookup: id might be a slug.
-		if name, found := k.slugReverse[id]; found {
+if name, found := _slugReverse[id]; found {
 			slug = id
 			id = name
 			ok = true
@@ -172,7 +178,7 @@ func (k *Kutikomiya) ParseActorIDFromURL(rawURL string) (string, error) {
 	if id == "" {
 		return "", nil
 	}
-	if name, found := k.slugReverse[id]; found {
+	if name, found := _slugReverse[id]; found {
 		return name, nil
 	}
 	return id, nil
@@ -206,7 +212,7 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 		info.Name = strings.TrimSpace(match[1])
 	}
 	if info.Name == "" {
-		if name, found := k.slugReverse[slug]; found {
+		if name, found := _slugReverse[slug]; found {
 			info.Name = name
 		}
 	}
@@ -267,7 +273,7 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 }
 
 func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, error) {
-	slug, ok := k.slugMap[keyword]
+	slug, ok := _slugMap[keyword]
 	if !ok || slug == "" {
 		return nil, provider.ErrInfoNotFound
 	}
