@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -88,9 +89,9 @@ func getActorBatch(app *engine.Engine) gin.HandlerFunc {
 						}
 					}
 					if err := kutikomiya.SaveSlugs(entries); err != nil {
-					fmt.Printf("SaveSlugs error for %s: %v\n", actor, err)
+					fmt.Fprintf(os.Stderr, "SaveSlugs error for %s: %v\n", actor, err)
 				} else {
-					fmt.Printf("SaveSlugs saved %d entries for %s: %v\n", len(entries), actor, entries)
+					fmt.Fprintf(os.Stderr, "SaveSlugs saved %d entries for %s: %v\n", len(entries), actor, entries)
 				}
 
 					mu.Lock()
