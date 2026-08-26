@@ -32,9 +32,9 @@ const (
 )
 
 const (
-	baseURL  = "https://localhost"
-	actorURL = "https://localhost/av-idol/%s/"
-	imageURL = "https://localhost:444/thumbnail/%s/W365xH450/%s001.jpg"
+	baseURL  = "https://kutikomiya.jp"
+	actorURL = "https://kutikomiya.jp/av-idol/%s/"
+	imageURL = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
 )
 
 // Precompiled regexes
@@ -58,6 +58,45 @@ var (
 
 func SetSlugDir(dir string) {
 	_slugDir = dir
+}
+
+func LookupSlug(name string) string {
+	if _slugDir == "" {
+		return ""
+	}
+	filePath := filepath.Join(_slugDir, "gfriends_slug.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+	m := make(map[string]string)
+	if err := json.Unmarshal(data, &m); err != nil {
+		return ""
+	}
+	return m[name]
+}
+
+func SaveSlugs(entries map[string]string) error {
+	if _slugDir == "" {
+		return nil
+	}
+	filePath := filepath.Join(_slugDir, "gfriends_slug.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	m := make(map[string]string)
+	if err := json.Unmarshal(data, &m); err != nil {
+		return err
+	}
+	for name, slug := range entries {
+		m[name] = slug
+	}
+	data, err = json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filePath, data, 0644)
 }
 
 type Kutikomiya struct {
