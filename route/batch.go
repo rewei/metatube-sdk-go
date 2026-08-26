@@ -88,7 +88,9 @@ func getActorBatch(app *engine.Engine) gin.HandlerFunc {
 						}
 					}
 					if err := kutikomiya.SaveSlugs(entries); err != nil {
-					fmt.Printf("SaveSlugs error: %v\n", err)
+					fmt.Printf("SaveSlugs error for %s: %v\n", actor, err)
+				} else {
+					fmt.Printf("SaveSlugs saved %d entries for %s\n", len(entries), actor)
 				}
 
 					mu.Lock()

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/text/language"
 
@@ -63,6 +64,8 @@ func LookupSlug(name string) string {
 }
 
 func SaveSlugs(entries map[string]string) error {
+	_slugMu.Lock()
+	defer _slugMu.Unlock()
 	// Always update in-memory maps, even if slugDir is not set.
 	for name, slug := range entries {
 		_slugMap[name] = slug
@@ -90,6 +93,7 @@ func SaveSlugs(entries map[string]string) error {
 var (
 	_slugMap     = make(map[string]string)
 	_slugReverse = make(map[string]string)
+	_slugMu      sync.Mutex
 )
 
 type Kutikomiya struct {
