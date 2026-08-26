@@ -1,14 +1,17 @@
 package route
 
 import (
+	"fmt"
 	"net/http"
 	pkgurl "net/url"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/metatube-community/metatube-sdk-go/engine"
 	"github.com/metatube-community/metatube-sdk-go/errors"
 	"github.com/metatube-community/metatube-sdk-go/model"
+	"github.com/metatube-community/metatube-sdk-go/provider/kutikomiya"
 )
 
 type searchType uint8
@@ -49,11 +52,28 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 		switch typ {
 		case actorSearchType:
 			if isValidURL {
-				results, err = app.GetActorInfoByURL(query.Q, true /* always lazy */)
+				results, err = app.GetActorInfoByURL(query.Q, true)
 			} else if searchAll {
 				results, err = app.SearchActorAll(query.Q, query.Fallback)
+				// If KUTIKOMIYA returned nothing, try MINNANO with auto-learning.
+				if err != nil || (results != nil && len(results.([]*model.ActorSearchResult)) == 0) {
+					if mn, mnErr := app.SearchActor(query.Q, "MINNANO", false); mnErr == nil && len(mn) > 0 {
+						results = mn
+						err = nil
+						// Try to auto-learn slug mapping.
+						go learnSlugFromMinnano(query.Q)
+					}
+				}
 			} else {
 				results, err = app.SearchActor(query.Q, query.Provider, query.Fallback)
+				// If the specified provider is KUTIKOMIYA and returned nothing, try MINNANO.
+				if (query.Provider == "" || query.Provider == "KUTIKOMIYA") && (err != nil || (results != nil && len(results.([]*model.ActorSearchResult)) == 0)) {
+					if mn, mnErr := app.SearchActor(query.Q, "MINNANO", false); mnErr == nil && len(mn) > 0 {
+						results = mn
+						err = nil
+						go learnSlugFromMinnano(query.Q)
+					}
+				}
 			}
 		case movieSearchType:
 			if isValidURL {
@@ -93,5 +113,35 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, &responseMessage{Data: results})
+	}
+}
+
+func learnSlugFromMinnano(name string) {
+	mainName, aliases, _ := queryMinnano(name)
+	if mainName == "" {
+		return
+	}
+	slug := kutikomiya.LookupSlug(mainName)
+	if slug == "" {
+		for _, alias := range aliases {
+			slug = kutikomiya.LookupSlug(alias)
+			if slug != "" {
+				break
+			}
+		}
+	}
+	if slug != "" {
+		entries := map[string]string{mainName: slug}
+		if name != mainName && name != "" {
+			entries[name] = slug
+		}
+		for _, alias := range aliases {
+			if alias != "" && alias != mainName {
+				entries[alias] = slug
+			}
+		}
+		if err := kutikomiya.SaveSlugs(entries); err != nil {
+			fmt.Fprintf(os.Stderr, "learnSlugFromMinnano error: %v\n", err)
+		}
 	}
 }
