@@ -105,6 +105,16 @@ func ResetCache() {
 	_fileTree.single.Reset()
 }
 
+// QueryUserAvatar queries only the user's avatar repo (rewei/avatars).
+func QueryUserAvatar(name string) ([]string, error) {
+	return _fileTree.query(name)
+}
+
+// QueryOriginalAvatar queries only the original gfriends repo.
+func QueryOriginalAvatar(name string) ([]string, error) {
+	return _fileTreeOrig.query(name)
+}
+
 type fileTree struct {
 	single *singledo.Single
 

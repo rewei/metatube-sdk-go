@@ -202,8 +202,15 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 	}
 	defer func() {
 		if err == nil && info != nil && provider.Language() == language.Japanese {
-			if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(id); gErr == nil && len(gInfo.Images) > 0 {
-				info.Images = gInfo.Images
+			var images []string
+			switch provider.Name() {
+			case "AV-LEAGUE":
+				images, _ = gfriends.QueryOriginalAvatar(id)
+			default:
+				images, _ = gfriends.QueryUserAvatar(id)
+			}
+			if len(images) > 0 {
+				info.Images = images
 			}
 		}
 		if err == nil && info != nil && info.IsValid() {
