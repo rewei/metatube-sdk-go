@@ -83,6 +83,10 @@ func getActorBatch(app *engine.Engine) gin.HandlerFunc {
 				if slug != "" {
 					// Found a slug mapping. Save all aliases and return KUTIKOMIYA ID.
 					entries := map[string]string{mainName: slug}
+					// Also save the original search keyword if different.
+					if actor != mainName && actor != "" {
+						entries[actor] = slug
+					}
 					for _, alias := range aliases {
 						if alias != "" && alias != mainName {
 							entries[alias] = slug
