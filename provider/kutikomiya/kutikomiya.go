@@ -75,6 +75,11 @@ func LookupSlug(name string) string {
 }
 
 func SaveSlugs(entries map[string]string) error {
+	// Always update in-memory maps, even if slugDir is not set.
+	for name, slug := range entries {
+		_slugMap[name] = slug
+		_slugReverse[slug] = name
+	}
 	if _slugDir == "" {
 		return nil
 	}
@@ -93,12 +98,6 @@ func SaveSlugs(entries map[string]string) error {
 	data, err = json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
-	}
-	// Reload in-memory slug maps for all existing provider instances.
-	// This is a package-level reload, so all instances pick up changes.
-	for name, slug := range entries {
-		_slugMap[name] = slug
-		_slugReverse[slug] = name
 	}
 	return os.WriteFile(filePath, data, 0644)
 }
