@@ -3,7 +3,6 @@ package engine
 import (
 	"bytes"
 	"crypto/md5"
-	"crypto/tls"
 	"fmt"
 	"image"
 	"io"
@@ -12,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/metatube-community/metatube-sdk-go/common/curlfetch"
 	"github.com/metatube-community/metatube-sdk-go/common/number"
 	R "github.com/metatube-community/metatube-sdk-go/constant"
 	"github.com/metatube-community/metatube-sdk-go/detector"
@@ -20,12 +20,6 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/model"
 	mt "github.com/metatube-community/metatube-sdk-go/provider"
 )
-
-var imageHTTPClient = &http.Client{
-	Transport: &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	},
-}
 
 // Default position constants for different kind of images.
 const (
@@ -117,15 +111,7 @@ func (e *Engine) getImageByURL(provider mt.Provider, url string) (img image.Imag
 
 	var data []byte
 	if strings.Contains(url, "localhost:444") || strings.Contains(url, "img.kutikomiya.jp") {
-		req, _ := http.NewRequest("GET", url, nil)
-		req.Header.Set("User-Agent", "Mozilla/5.0")
-		var resp *http.Response
-		resp, err = imageHTTPClient.Do(req)
-		if err != nil {
-			return
-		}
-		defer resp.Body.Close()
-		data, err = io.ReadAll(resp.Body)
+		data, err = curlfetch.Fetch(url)
 		if err != nil {
 			return
 		}
