@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -83,11 +84,27 @@ func SaveSlugs(entries map[string]string) error {
 	for name, slug := range entries {
 		m[name] = slug
 	}
-	data, err = json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
+	// Sort by slug first, then by name, so aliases of the same actor are grouped.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
 	}
-	return os.WriteFile(filePath, data, 0644)
+	sort.SliceStable(keys, func(i, j int) bool {
+		if m[keys[i]] != m[keys[j]] {
+			return m[keys[i]] < m[keys[j]]
+		}
+		return keys[i] < keys[j]
+	})
+	var buf strings.Builder
+	buf.WriteString("{\n")
+	for i, k := range keys {
+		if i > 0 {
+			buf.WriteString(",\n")
+		}
+		buf.WriteString(fmt.Sprintf("  %q: %q", k, m[k]))
+	}
+	buf.WriteString("\n}\n")
+	return os.WriteFile(filePath, []byte(buf.String()), 0644)
 }
 
 var (

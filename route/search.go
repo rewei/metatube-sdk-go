@@ -30,7 +30,7 @@ type searchQuery struct {
 func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		query := &searchQuery{
-			Fallback: true, // enable fallback by default.
+			Fallback: true,
 		}
 		if err := c.ShouldBindQuery(query); err != nil {
 			abortWithStatusMessage(c, http.StatusBadRequest, err)
@@ -42,7 +42,6 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 			isValidURL = false
 		}
 
-		// if provider is not specified, search with all providers.
 		searchAll := query.Provider == ""
 
 		var (
@@ -55,29 +54,12 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 				results, err = app.GetActorInfoByURL(query.Q, true)
 			} else if searchAll {
 				results, err = app.SearchActorAll(query.Q, query.Fallback)
-				// If KUTIKOMIYA returned nothing, try MINNANO with auto-learning.
-				if err != nil || (results != nil && len(results.([]*model.ActorSearchResult)) == 0) {
-					if mn, mnErr := app.SearchActor(query.Q, "MINNANO", false); mnErr == nil && len(mn) > 0 {
-						results = mn
-						err = nil
-						// Try to auto-learn slug mapping.
-						go learnSlugFromMinnano(query.Q)
-					}
-				}
 			} else {
 				results, err = app.SearchActor(query.Q, query.Provider, query.Fallback)
-				// If the specified provider is KUTIKOMIYA and returned nothing, try MINNANO.
-				if (query.Provider == "" || query.Provider == "KUTIKOMIYA") && (err != nil || (results != nil && len(results.([]*model.ActorSearchResult)) == 0)) {
-					if mn, mnErr := app.SearchActor(query.Q, "MINNANO", false); mnErr == nil && len(mn) > 0 {
-						results = mn
-						err = nil
-						go learnSlugFromMinnano(query.Q)
-					}
-				}
 			}
 		case movieSearchType:
 			if isValidURL {
-				results, err = app.GetMovieInfoByURL(query.Q, true /* always lazy */)
+				results, err = app.GetMovieInfoByURL(query.Q, true)
 			} else if searchAll {
 				results, err = app.SearchMovieAll(query.Q, query.Fallback)
 			} else {
@@ -86,15 +68,17 @@ func getSearch(app *engine.Engine, typ searchType) gin.HandlerFunc {
 		default:
 			panic("invalid search type")
 		}
+		// Async learning: if KUTIKOMIYA returned nothing, try MINNANO in background.
+		if typ == actorSearchType && err != nil && !isValidURL {
+			go learnSlugFromMinnano(query.Q)
+		}
 		if err != nil {
 			abortWithError(c, err)
 			return
 		}
 
-		// length is at least 1.
 		resultsLength := 1
 
-		// convert to search results.
 		switch v := results.(type) {
 		case *model.ActorInfo:
 			results = []*model.ActorSearchResult{v.ToSearchResult()}
