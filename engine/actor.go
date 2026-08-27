@@ -110,7 +110,28 @@ func (e *Engine) SearchActor(keyword, name string, fallback bool) ([]*model.Acto
 	if err != nil {
 		return nil, err
 	}
-	return e.searchActor(keyword, provider, fallback)
+	results, err := e.searchActor(keyword, provider, fallback)
+	if err != nil {
+		return nil, err
+	}
+	// Inject gfriends images into search results.
+	for _, r := range results {
+		if len(r.Images) == 0 || r.Provider == "Gfriends" {
+			continue
+		}
+		// Try user avatar first, then original gfriends.
+		var images []string
+		switch r.Provider {
+		case "AV-LEAGUE":
+			images, _ = gfriends.QueryOriginalAvatar(r.Name)
+		default:
+			images, _ = gfriends.QueryUserAvatar(r.Name)
+		}
+		if len(images) > 0 {
+			r.Images = images
+		}
+	}
+	return results, nil
 }
 
 func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model.ActorSearchResult, err error) {
