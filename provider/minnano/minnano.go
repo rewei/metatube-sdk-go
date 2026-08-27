@@ -126,9 +126,6 @@ func (m *Minnano) GetActorInfoByURL(rawURL string) (info *model.ActorInfo, err e
 		if ld.BirthPlace.Name != "" {
 			info.Nationality = ld.BirthPlace.Name
 		}
-		if ld.Description != "" {
-			info.Summary = ld.Description
-		}
 	})
 
 	// Parse size/measurements: T167 / B85(Eカップ) / W60 / H87 / S

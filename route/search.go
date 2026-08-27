@@ -6,6 +6,7 @@ import (
 	pkgurl "net/url"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -131,6 +132,11 @@ func searchKutikomiyaSlug(name string) string {
 	if err != nil {
 		return ""
 	}
+	// Verify the search page actually contains the search keyword.
+	// If not, the results might be for a different actor.
+	if !strings.Contains(string(body), name) {
+		return ""
+	}
 	re := regexp.MustCompile(`/av-idol/([a-z][a-z-]+)/`)
 	matches := re.FindAllSubmatch(body, -1)
 	seen := make(map[string]bool)
@@ -140,8 +146,9 @@ func searchKutikomiyaSlug(name string) string {
 			continue
 		}
 		seen[slug] = true
-		// Skip navigation links.
-		if slug == "archive" || slug == "ranking" || slug == "photo-album" || slug == "bust" || slug == "yomi" {
+		// Skip navigation links and non-actor pages.
+		switch slug {
+		case "archive", "ranking", "photo-album", "bust", "yomi", "popular", "search", "movie", "prefecture", "blood", "look", "category", "body", "aimi", "airi", "akimi", "akina", "an", "arisu", "asuka", "aviril", "ayaka", "ayami", "bijou", "erena", "fuwari", "hazuki", "hellomikity", "hikari", "hina", "hinano", "hitomi", "ichika", "itsuka", "kaho", "kaon", "karin", "kei", "koharu", "konoha", "kyoko", "linoa", "luna", "maika", "maria", "marika", "mecumi", "megu", "meina", "meirin", "meru", "mihiro", "mikoto", "mimi", "mirai", "misaki", "miyu", "mizuki", "moka", "momo", "myu", "nagisa", "nami", "nao", "natsumi", "nichola", "nonoka", "otome", "ramu", "rei", "rica", "rin", "rina", "rio", "rumika", "saki", "sakurako", "sakurano", "saori", "satomi", "serina", "sumire", "toa", "tsubomi", "vivian", "yayoi", "yoko", "yurina":
 			continue
 		}
 		return slug

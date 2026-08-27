@@ -203,11 +203,12 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 	defer func() {
 		if err == nil && info != nil && provider.Language() == language.Japanese {
 			var images []string
+			// Use info.Name (Japanese name) for lookup, not id (which may be numeric for MINNANO).
 			switch provider.Name() {
 			case "AV-LEAGUE":
-				images, _ = gfriends.QueryOriginalAvatar(id)
+				images, _ = gfriends.QueryOriginalAvatar(info.Name)
 			default:
-				images, _ = gfriends.QueryUserAvatar(id)
+				images, _ = gfriends.QueryUserAvatar(info.Name)
 			}
 			if len(images) > 0 {
 				info.Images = images
