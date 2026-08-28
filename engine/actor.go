@@ -200,6 +200,22 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 	sort.SliceStable(results, func(i, j int) bool {
 		return priorities[results[i].Provider] > priorities[results[j].Provider]
 	})
+	// Inject gfriends images into search results.
+	for _, r := range results {
+		if len(r.Images) == 0 || r.Provider == "Gfriends" {
+			continue
+		}
+		switch r.Provider {
+		case "AV-LEAGUE":
+			if images, _ := gfriends.QueryOriginalAvatar(r.Name); len(images) > 0 {
+				r.Images = images
+			}
+		default:
+			if images, _ := gfriends.QueryUserAvatar(r.Name); len(images) > 0 {
+				r.Images = images
+			}
+		}
+	}
 	return
 }
 
