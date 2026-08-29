@@ -240,13 +240,26 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 	}
 	defer func() {
 		if err == nil && info != nil && provider.Language() == language.Japanese {
+			// Try id (original search keyword) first, then info.Name (provider's name).
+			lookupName := id
+			if lookupName == "" {
+				lookupName = info.Name
+			}
 			var images []string
-			// Use info.Name (Japanese name) for lookup, not id (which may be numeric for MINNANO).
 			switch provider.Name() {
 			case "AV-LEAGUE":
-				images, _ = gfriends.QueryOriginalAvatar(info.Name)
+				images, _ = gfriends.QueryOriginalAvatar(lookupName)
 			default:
-				images, _ = gfriends.QueryUserAvatar(info.Name)
+				images, _ = gfriends.QueryUserAvatar(lookupName)
+			}
+			// If first lookup failed and id != info.Name, try info.Name.
+			if len(images) == 0 && lookupName != info.Name && info.Name != "" {
+				switch provider.Name() {
+				case "AV-LEAGUE":
+					images, _ = gfriends.QueryOriginalAvatar(info.Name)
+				default:
+					images, _ = gfriends.QueryUserAvatar(info.Name)
+				}
 			}
 			if len(images) > 0 {
 				info.Images = append(info.Images, images...)
