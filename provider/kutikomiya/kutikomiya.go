@@ -64,6 +64,10 @@ func LookupSlug(name string) string {
 	return _slugMap[name]
 }
 
+func LookupName(slug string) string {
+	return _slugReverse[slug]
+}
+
 func SaveSlugs(entries map[string]string) error {
 	_slugMu.Lock()
 	defer _slugMu.Unlock()

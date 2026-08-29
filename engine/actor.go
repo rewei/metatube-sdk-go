@@ -18,6 +18,7 @@ import (
 	"github.com/metatube-community/metatube-sdk-go/model"
 	mt "github.com/metatube-community/metatube-sdk-go/provider"
 	"github.com/metatube-community/metatube-sdk-go/provider/gfriends"
+	"github.com/metatube-community/metatube-sdk-go/provider/kutikomiya"
 )
 
 func (e *Engine) searchActorFromDB(keyword string, provider mt.Provider) (results []*model.ActorSearchResult, err error) {
@@ -128,7 +129,7 @@ func (e *Engine) SearchActor(keyword, name string, fallback bool) ([]*model.Acto
 			images, _ = gfriends.QueryUserAvatar(r.Name)
 		}
 		if len(images) > 0 {
-			r.Images = images
+			r.Images = append(r.Images, images...)
 		}
 	}
 	return results, nil
@@ -208,11 +209,11 @@ func (e *Engine) SearchActorAll(keyword string, fallback bool) (results []*model
 		switch r.Provider {
 		case "AV-LEAGUE":
 			if images, _ := gfriends.QueryOriginalAvatar(r.Name); len(images) > 0 {
-				r.Images = images
+				r.Images = append(r.Images, images...)
 			}
 		default:
 			if images, _ := gfriends.QueryUserAvatar(r.Name); len(images) > 0 {
-				r.Images = images
+				r.Images = append(r.Images, images...)
 			}
 		}
 	}
@@ -248,7 +249,7 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 				images, _ = gfriends.QueryUserAvatar(info.Name)
 			}
 			if len(images) > 0 {
-				info.Images = images
+				info.Images = append(info.Images, images...)
 			}
 		}
 		if err == nil && info != nil && info.IsValid() {
@@ -270,7 +271,12 @@ func (e *Engine) getActorInfoWithCallback(provider mt.ActorProvider, id string, 
 	info, err = callback()
 	if err != nil {
 		// Fallback to gfriends for image-only result.
-		if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(id); gErr == nil && gInfo.IsValid() && len(gInfo.Images) > 0 {
+		// Use the actor name (from slug reverse lookup) instead of the slug ID.
+		actorName := id
+		if name := kutikomiya.LookupName(id); name != "" {
+			actorName = name
+		}
+		if gInfo, gErr := e.MustGetActorProviderByName(gfriends.Name).GetActorInfoByID(actorName); gErr == nil && gInfo.IsValid() && len(gInfo.Images) > 0 {
 			info = gInfo
 			err = nil
 		}
