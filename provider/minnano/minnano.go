@@ -25,7 +25,7 @@ var (
 
 const (
 	Name     = "MINNANO"
-	Priority = 500
+	Priority = 1000
 )
 
 const (
