@@ -341,8 +341,8 @@ func collectAlbumImages(slug string) []string {
 			if err != nil {
 				return
 			}
-			_, h, ok := parseJPEGDimensions(data)
-			if ok && h > 0 {
+			w, h, ok := parseJPEGDimensions(data)
+			if ok && h > w {
 				ch <- imgResult{n, u}
 			}
 		}(n)
