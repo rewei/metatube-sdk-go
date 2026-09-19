@@ -3,6 +3,7 @@ package kutikomiya
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/text/language"
 
@@ -287,19 +289,50 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 
 	imgURL := fmt.Sprintf(imageURL, slug, slug)
 	info.Images = append(info.Images, imgURL)
-
-	// Extract all album images from the page HTML.
-	reAlbum := regexp.MustCompile(`https://img\.kutikomiya\.jp/album/` + regexp.QuoteMeta(slug) + `/` + regexp.QuoteMeta(slug) + `\d{3}\.jpg`)
-	seen := map[string]bool{imgURL: true}
-	for _, m := range reAlbum.FindAllString(html, -1) {
-		if seen[m] {
-			continue
-		}
-		seen[m] = true
-		info.Images = append(info.Images, m)
-	}
+	info.Images = append(info.Images, collectAlbumImages(slug)...)
 
 	return info, nil
+}
+
+// collectAlbumImages probes img.kutikomiya.jp CDN to find all sequentially numbered images.
+// Uses exponential probe then binary search (max ~10 HEAD requests).
+func collectAlbumImages(slug string) []string {
+	base := fmt.Sprintf("https://img.kutikomiya.jp/album/%s/%s", slug, slug)
+	client := &http.Client{Timeout: 3 * time.Second}
+	exists := func(n int) bool {
+		u := fmt.Sprintf("%s%03d.jpg", base, n)
+		resp, err := client.Head(u)
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}
+	if !exists(2) {
+		return nil
+	}
+	low, high := 2, 2
+	for exists(high) {
+		low = high
+		high *= 2
+		if high > 999 {
+			high = 999
+			break
+		}
+	}
+	for low < high {
+		mid := (low + high + 1) / 2
+		if exists(mid) {
+			low = mid
+		} else {
+			high = mid - 1
+		}
+	}
+	urls := make([]string, 0, low-1)
+	for i := 2; i <= low; i++ {
+		urls = append(urls, fmt.Sprintf("%s%03d.jpg", base, i))
+	}
+	return urls
 }
 
 func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, error) {
