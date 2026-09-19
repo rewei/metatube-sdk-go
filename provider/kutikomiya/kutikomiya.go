@@ -34,7 +34,7 @@ const (
 const (
 	baseURL  = "https://kutikomiya.jp"
 	actorURL = "https://kutikomiya.jp/av-idol/%s/"
-	imageURL = "https://img.kutikomiya.jp/thumbnail/%s/W365xH450/%s001.jpg"
+	imageURL = "https://img.kutikomiya.jp/album/%s/%s001.jpg"
 )
 
 // Precompiled regexes
@@ -83,10 +83,20 @@ func SaveSlugs(entries map[string]string) error {
 	data, err := os.ReadFile(filePath)
 	m := make(map[string]string)
 	if err == nil {
-		json.Unmarshal(data, &m)
+		if err := json.Unmarshal(data, &m); err != nil {
+			fmt.Fprintf(os.Stderr, "SaveSlugs: failed to parse existing %s: %v\n", filePath, err)
+		}
 	}
 	for name, slug := range entries {
 		m[name] = slug
+	}
+	// Safety: don't write if we'd lose more than 90% of entries (file corruption guard).
+	const minEntries = 100
+	if len(m) < minEntries && len(m) < len(entries) {
+		// Likely the existing file was corrupted; only write if we're adding new data.
+		if len(entries) == 0 {
+			return fmt.Errorf("SaveSlugs: refusing to write empty slug file")
+		}
 	}
 	// Sort by slug first, then by name, so aliases of the same actor are grouped.
 	keys := make([]string, 0, len(m))
