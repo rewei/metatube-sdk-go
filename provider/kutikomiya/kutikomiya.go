@@ -298,11 +298,10 @@ func collectAlbumImages(slug string) []string {
 	base := fmt.Sprintf("https://img.kutikomiya.jp/album/%s/%s", slug, slug)
 	exists := func(n int) bool {
 		u := fmt.Sprintf("%s%03d.jpg", base, n)
-		_, err := curlfetch.Fetch(u, "-o", "/dev/null", "-f", "--connect-timeout", "5")
+		_, err := curlfetch.Fetch(u, "-o", "/dev/null", "-f", "--connect-timeout", "5", "--max-time", "5")
 		return err == nil
 	}
 	if !exists(2) {
-		fmt.Fprintf(os.Stderr, "[KUTIKOMIYA] album images for %s: image 002 not found (CDN unreachable?)\n", slug)
 		return nil
 	}
 	low, high := 2, 2
@@ -326,7 +325,6 @@ func collectAlbumImages(slug string) []string {
 	for i := 2; i <= low; i++ {
 		urls = append(urls, fmt.Sprintf("%s%03d.jpg", base, i))
 	}
-	fmt.Fprintf(os.Stderr, "[KUTIKOMIYA] album images for %s: %d found (max=%d)\n", slug, len(urls), low)
 	return urls
 }
 
