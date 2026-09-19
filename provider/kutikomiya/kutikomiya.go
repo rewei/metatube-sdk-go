@@ -295,13 +295,13 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 }
 
 // collectAlbumImages probes img.kutikomiya.jp CDN to find all sequentially numbered images.
-// Uses exponential probe then binary search (max ~10 HEAD requests).
+// Uses exponential probe then binary search (max ~10 GET requests, only checks status code).
 func collectAlbumImages(slug string) []string {
 	base := fmt.Sprintf("https://img.kutikomiya.jp/album/%s/%s", slug, slug)
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := &http.Client{Timeout: 5 * time.Second}
 	exists := func(n int) bool {
 		u := fmt.Sprintf("%s%03d.jpg", base, n)
-		resp, err := client.Head(u)
+		resp, err := client.Get(u)
 		if err != nil {
 			return false
 		}
