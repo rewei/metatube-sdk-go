@@ -3,7 +3,6 @@ package kutikomiya
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"golang.org/x/text/language"
 
@@ -295,18 +293,16 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 }
 
 // collectAlbumImages probes img.kutikomiya.jp CDN to find all sequentially numbered images.
-// Uses exponential probe then binary search (max ~10 GET requests, only checks status code).
+// Uses curl (via curlfetch.Fetch) with SECLEVEL=0 for TLS compatibility, then exponential+binary search.
 func collectAlbumImages(slug string) []string {
 	base := fmt.Sprintf("https://img.kutikomiya.jp/album/%s/%s", slug, slug)
-	client := &http.Client{Timeout: 5 * time.Second}
 	exists := func(n int) bool {
 		u := fmt.Sprintf("%s%03d.jpg", base, n)
-		resp, err := client.Get(u)
+		out, err := curlfetch.Fetch(u, "-o", "/dev/null", "-w", "%{http_code}", "--connect-timeout", "5")
 		if err != nil {
 			return false
 		}
-		resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
+		return strings.TrimSpace(string(out)) == "200"
 	}
 	if !exists(2) {
 		return nil
