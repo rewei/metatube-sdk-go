@@ -3,6 +3,7 @@ package kutikomiya
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -287,8 +288,58 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 
 	imgURL := fmt.Sprintf(imageURL, slug, slug)
 	info.Images = append(info.Images, imgURL)
+	// Collect all album images beyond 001.
+	info.Images = append(info.Images, collectAlbumImages(slug)...)
 
 	return info, nil
+}
+
+// collectAlbumImages finds all album images for a slug beyond 001.jpg.
+// Uses exponential probing then binary search to minimize HTTP requests.
+func collectAlbumImages(slug string) []string {
+	base := fmt.Sprintf("https://img.kutikomiya.jp/album/%s/%s", slug, slug)
+	exists := func(n int) bool {
+		u := fmt.Sprintf("%s%03d.jpg", base, n)
+		resp, err := http.Get(u)
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}
+
+	// Exponential probe: 2, 4, 8, 16... until 404.
+	low := 2
+	high := 2
+	for exists(high) {
+		low = high
+		high *= 2
+		if high > 999 {
+			high = 999
+			break
+		}
+	}
+	// If even 002 doesn't exist, return empty.
+	if low == 2 && !exists(2) {
+		return nil
+	}
+
+	// Binary search between low and high for the max.
+	for low < high {
+		mid := (low + high + 1) / 2
+		if exists(mid) {
+			low = mid
+		} else {
+			high = mid - 1
+		}
+	}
+	max := low
+
+	urls := make([]string, 0, max-1)
+	for i := 2; i <= max; i++ {
+		urls = append(urls, fmt.Sprintf("%s%03d.jpg", base, i))
+	}
+	return urls
 }
 
 func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, error) {
