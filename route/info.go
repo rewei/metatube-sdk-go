@@ -64,19 +64,3 @@ func getInfo(app *engine.Engine, typ infoType) gin.HandlerFunc {
 		c.JSON(http.StatusOK, &responseMessage{Data: info})
 	}
 }
-
-func getActorImages(app *engine.Engine) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		uri := &infoUri{}
-		if err := c.ShouldBindUri(uri); err != nil {
-			abortWithStatusMessage(c, http.StatusBadRequest, err)
-			return
-		}
-		images, err := app.GetActorAlbumImages(uri.AsProviderID())
-		if err != nil {
-			abortWithError(c, err)
-			return
-		}
-		c.JSON(http.StatusOK, &responseMessage{Data: images})
-	}
-}

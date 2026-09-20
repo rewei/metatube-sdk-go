@@ -65,7 +65,6 @@ func New(app *engine.Engine, v auth.Validator) *gin.Engine {
 		actors := private.Group("/actors")
 		{
 			actors.GET("/:provider/:id", getInfo(app, actorInfoType))
-			actors.GET("/:provider/:id/images", getActorImages(app))
 			actors.GET("/search", getSearch(app, actorSearchType))
 			actors.POST("/batch", getActorBatch(app))
 		}
