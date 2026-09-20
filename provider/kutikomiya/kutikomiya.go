@@ -285,136 +285,19 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 		}
 	}
 
-	imgURL := fmt.Sprintf(imageURL, slug, slug)
-	info.Images = append(info.Images, imgURL)
+	info.Images = append(info.Images, fmt.Sprintf(imageURL, slug, slug))
+	info.Images = append(info.Images, GetAlbumImages(slug)...)
 
 	return info, nil
 }
 
-var (
-	albumCache   = make(map[string][]string)
-	albumCacheMu sync.RWMutex
-)
-
-// GetAlbumImages returns cached album images or probes CDN and caches results.
 func GetAlbumImages(slug string) []string {
-	albumCacheMu.RLock()
-	cached, ok := albumCache[slug]
-	albumCacheMu.RUnlock()
-	if ok {
-		return cached
-	}
-	imgs := collectAlbumImages(slug)
-	albumCacheMu.Lock()
-	albumCache[slug] = imgs
-	albumCacheMu.Unlock()
-	return imgs
-}
-
-// collectAlbumImages finds all album images for a slug, filtering to portrait only.
-func collectAlbumImages(slug string) []string {
 	base := fmt.Sprintf("https://img.kutikomiya.jp/album/%s/%s", slug, slug)
-
-	exists := func(n int) bool {
-		u := fmt.Sprintf("%s%03d.jpg", base, n)
-		_, err := curlfetch.Fetch(u, "-o", "/dev/null", "-f", "--connect-timeout", "5", "--max-time", "5")
-		return err == nil
-	}
-	if !exists(2) {
-		return nil
-	}
-	low, high := 2, 2
-	for exists(high) {
-		low = high
-		high *= 2
-		if high > 999 {
-			high = 999
-			break
-		}
-	}
-	for low < high {
-		mid := (low + high + 1) / 2
-		if exists(mid) {
-			low = mid
-		} else {
-			high = mid - 1
-		}
-	}
-
-	type imgResult struct {
-		n   int
-		url string
-	}
-	ch := make(chan imgResult, low)
-	sem := make(chan struct{}, 10)
-	var wg sync.WaitGroup
-
-	for n := 1; n <= low; n++ {
-		wg.Add(1)
-		go func(n int) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			u := fmt.Sprintf("%s%03d.jpg", base, n)
-			data, err := curlfetch.Fetch(u, "-r", "0-2047", "--max-time", "5")
-			if err != nil {
-				return
-			}
-			w, h, ok := parseJPEGDimensions(data)
-			if ok && h > w {
-				ch <- imgResult{n, u}
-			}
-		}(n)
-	}
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	var results []imgResult
-	for r := range ch {
-		results = append(results, r)
-	}
-	sort.Slice(results, func(i, j int) bool { return results[i].n < results[j].n })
-
-	urls := make([]string, len(results))
-	for i, r := range results {
-		urls[i] = r.url
+	urls := make([]string, 0, 150)
+	for n := 2; n <= 150; n++ {
+		urls = append(urls, fmt.Sprintf("%s%03d.jpg", base, n))
 	}
 	return urls
-}
-
-// parseJPEGDimensions extracts width and height from JPEG header (SOF0/SOF2 marker).
-func parseJPEGDimensions(data []byte) (width, height int, ok bool) {
-	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xD8 {
-		return
-	}
-	for i := 2; i < len(data)-1; {
-		if data[i] != 0xFF {
-			return
-		}
-		m := data[i+1]
-		if m == 0xDA {
-			return
-		}
-		if (m >= 0xC0 && m <= 0xC3) || (m >= 0xC5 && m <= 0xCF) {
-			if i+9 >= len(data) {
-				return
-			}
-			height = int(data[i+5])<<8 | int(data[i+6])
-			width = int(data[i+7])<<8 | int(data[i+8])
-			return width, height, true
-		}
-		if i+3 >= len(data) {
-			return
-		}
-		l := int(data[i+2])<<8 | int(data[i+3])
-		if l < 2 {
-			return
-		}
-		i += 2 + l
-	}
-	return
 }
 
 func (k *Kutikomiya) SearchActor(keyword string) ([]*model.ActorSearchResult, error) {
