@@ -335,6 +335,23 @@ func (e *Engine) GetActorInfoByURL(rawURL string, lazy bool) (*model.ActorInfo, 
 	return e.getActorInfoByProviderURL(provider, rawURL, lazy)
 }
 
+func (e *Engine) GetActorAlbumImages(pid providerid.ProviderID) ([]string, error) {
+	provider, err := e.GetActorProviderByName(pid.Provider)
+	if err != nil {
+		return nil, err
+	}
+	id := provider.NormalizeActorID(pid.ID)
+	switch provider.Name() {
+	case "KUTIKOMIYA":
+		slug := kutikomiya.LookupSlug(id)
+		if slug == "" {
+			slug = id
+		}
+		return kutikomiya.GetAlbumImages(slug), nil
+	}
+	return nil, mt.ErrInfoNotFound
+}
+
 func (e *Engine) preFetchActorImages(info *model.ActorInfo) {
 	if e.imageCacheDir == "" {
 		return

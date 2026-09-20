@@ -287,7 +287,6 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 
 	imgURL := fmt.Sprintf(imageURL, slug, slug)
 	info.Images = append(info.Images, imgURL)
-	info.Images = append(info.Images, getAlbumImages(slug)...)
 
 	return info, nil
 }
@@ -297,8 +296,8 @@ var (
 	albumCacheMu sync.RWMutex
 )
 
-// getAlbumImages returns cached album images or probes CDN and caches results.
-func getAlbumImages(slug string) []string {
+// GetAlbumImages returns cached album images or probes CDN and caches results.
+func GetAlbumImages(slug string) []string {
 	albumCacheMu.RLock()
 	cached, ok := albumCache[slug]
 	albumCacheMu.RUnlock()
