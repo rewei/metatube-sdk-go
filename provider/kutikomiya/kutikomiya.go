@@ -287,7 +287,6 @@ func (k *Kutikomiya) GetActorInfoByURL(rawURL string) (*model.ActorInfo, error) 
 
 	imgURL := fmt.Sprintf(imageURL, slug, slug)
 	info.Images = append(info.Images, imgURL)
-	info.Images = append(info.Images, GetAlbumImages(slug)...)
 
 	return info, nil
 }
